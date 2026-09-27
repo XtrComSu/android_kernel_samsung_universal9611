@@ -2506,6 +2506,9 @@ void try_schedule_zs_compact(void)
 {
 	static unsigned long resume = INITIAL_JIFFIES;
 
+	if (!g_pool)
+		return;
+
 	if (time_is_before_jiffies(resume) &&
 			!work_pending(&zs_compact_work) &&
 			zs_compactable(g_pool, ZS_COMPACT_THRESHOLD)) {
