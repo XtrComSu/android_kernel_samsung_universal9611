@@ -2494,7 +2494,9 @@ static bool zs_compactable(struct zs_pool *pool, unsigned int pages)
 		if (class->index != i)
 			continue;
 
+		spin_lock(&class->lock);
 		pages_to_free += zs_can_compact(class);
+		spin_unlock(&class->lock);
 
 		if (pages_to_free >= pages)
 			return true;
@@ -2505,13 +2507,15 @@ static bool zs_compactable(struct zs_pool *pool, unsigned int pages)
 void try_schedule_zs_compact(void)
 {
 	static unsigned long resume = INITIAL_JIFFIES;
+	struct zs_pool *pool;
 
-	if (!g_pool)
+	pool = READ_ONCE(g_pool);
+	if (!pool)
 		return;
 
 	if (time_is_before_jiffies(resume) &&
 			!work_pending(&zs_compact_work) &&
-			zs_compactable(g_pool, ZS_COMPACT_THRESHOLD)) {
+			zs_compactable(pool, ZS_COMPACT_THRESHOLD)) {
 		resume = jiffies + ZS_COMPACT_INTERVAL * HZ;
 		schedule_work(&zs_compact_work);
 	}
