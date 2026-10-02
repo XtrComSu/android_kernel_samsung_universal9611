@@ -109,10 +109,11 @@ def main():
                    'OBJDUMP=llvm-objdump', 'READELF=llvm-readelf', 'NM=llvm-nm',
                    'OBJCOPY=llvm-objcopy', 'ARCH=arm64', f'-j{os.cpu_count()}',
                    # drivers/kernelsu is vendored without .git, so pin the
-                   # git-derived version for commit d999a2af on
-                   # legacy-susfs-v2: 30000 + 3025 commits + 200 = 33225.
-                   'KSU_VERSION_OVERRIDE=33225',
-                   'KSU_VERSION_TAG_OVERRIDE=v3.4.0-legacy-susfs-v2']
+                   # git-derived version for tag v3.3.0-legacy-susfs-v2
+                   # (commit 36679224, 3014 commits): 30000+3014+200 = 33214,
+                   # which matches the KernelSU-Next v3.3.0 manager (UAPI 2).
+                   'KSU_VERSION_OVERRIDE=33214',
+                   'KSU_VERSION_TAG_OVERRIDE=v3.3.0-legacy-susfs-v2']
     make_defconfig = make_common + [f'exynos9611-{args.target}_defconfig']
 
     start_time = datetime.now()

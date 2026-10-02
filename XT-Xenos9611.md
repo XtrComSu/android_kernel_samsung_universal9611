@@ -27,10 +27,19 @@ there are no RKP / DEFEX / PROCA / FIVE / KDP security dirs.
 | Field | Value |
 |---|---|
 | Project | KernelSU-Next (`https://github.com/sidex15/KernelSU-Next`) |
-| Branch | `legacy-susfs-v2` (newest legacy line with SUSFS glue) |
-| Commit | `d999a2aff11575c6e2f520129ecffb7c6058fb02` |
+| Tag | `v3.3.0-legacy-susfs-v2` (v3.3.0 line + SUSFS v2 glue, manual hook) |
+| Commit | `36679224f26d03f2bb105c4686cf390eb63178c2` |
+| Reported version | `33214` (= 30000 + 3014 commits + 200; matches the v3.3.0 manager) |
+| UAPI version | `2` (matches the KernelSU-Next v3.3.0 manager) |
 | Location | `drivers/kernelsu/` (vendored, not a submodule) |
 | Hook mode | `CONFIG_KSU_MANUAL_HOOK=y` |
+
+History: v3.4.0 was tried first (UAPI 4, version 33225) but its manager
+would not connect; the kernel is now pinned to the v3.3.0 legacy+SUSFS line,
+whose UAPI (2) and version (33214) match the v3.3.0 manager exactly.
+The only difference between the two lines is KSU-side; the SUSFS v2.3.0
+kernel integration is unchanged and remains compatible (only the optional
+`CMD_SUSFS_ADD_SUS_MEMFD` is absent).
 
 ## SUSFS
 
@@ -126,28 +135,30 @@ peak-only gains that hurt sustained throughput.
 
 ## MANAGER
 
-Use the **KernelSU-Next (KSUN) manager**, version-matched to the pinned
-revision: **v3.4.0** (`KernelSU_Next_v3.4.0_33294-release.apk`). Not the
-original KernelSU manager and not APatch.
+Use the **KernelSU-Next (KSUN) manager v3.3.0** —
+`KernelSU_Next_v3.3.0-spoofed_33214-release.apk`. Not the original KernelSU
+manager and not APatch.
 
-The kernel reports its version to the manager via the KSU supercall. Since
-`drivers/kernelsu` is vendored without a `.git`, the Kbuild would otherwise
-fall back to `KSU_VERSION=1`, so the build pins the **real git-derived** value
-for the pinned revision (`legacy-susfs-v2` @ `d999a2af`, 3025 commits:
-`30000 + 3025 + 200 = 33225`) via `KSU_VERSION_OVERRIDE=33225` and
-`KSU_VERSION_TAG_OVERRIDE=v3.4.0-legacy-susfs-v2`.
+The kernel is pinned to tag `v3.3.0-legacy-susfs-v2`, so it reports version
+`33214` and `KERNEL_SU_UAPI_VERSION = 2`, matching that manager exactly.
 
-This is not a borrowed/faked version: the code's own `KERNEL_SU_UAPI_VERSION`
-is **4**, identical to upstream KernelSU-Next `v3.4.0` and `v3.4.0-legacy`, and
-it carries the current toolkit commands (`CHANGE_KSUVER=10011`,
-`CHANGE_SPOOF_UNAME=10012`, `GET_SULOG_DUMP_V2=10010`). Upstream managers
-require kernel >= 33188, so 33225 passes while still being this revision's
-true value. Verified: the tag string is embedded in `Image`.
+Because `drivers/kernelsu` is vendored without `.git`, the build pins
+`KSU_VERSION_OVERRIDE=33214` / `KSU_VERSION_TAG_OVERRIDE=v3.3.0-legacy-susfs-v2`
+(the vendored Kbuild was extended to accept those variables). Verified: the tag
+string is embedded in `Image`.
 
-Manager compatibility note: upstream v3.3.0/v3.4.0 managers gate on
-`version >= 33188` **and** `kernelUAPIVersion == managerUAPIVersion`. Reporting
-`KSU_VERSION=1` (the un-pinned fallback) fails that gate, which is why an
-older manager build can appear to work while a newer one refuses.
+Manager compatibility, verified from the APK bytes and the manager sources:
+
+- The manager cert must be 998 bytes, sha256
+  `79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7`. BOTH the
+  v3.3.0-spoofed and v3.4.0 APKs carry exactly that cert, so the signature is
+  not the discriminator.
+- The discriminator is `kernelUAPIVersion == managerUAPIVersion`: the v3.3.0
+  manager is UAPI **2**, the v3.4.0 manager is UAPI **4**.
+- Therefore the kernel is pinned to the v3.3.0 line (UAPI 2) to match the
+  working manager. The earlier v3.4.0 attempt used UAPI 4 and a version of
+  `33225`; v3.4.0 managers are not used here.
+- Both manager generations also require `version >= 33188`; `33214` passes.
 
 ## CAPABILITIES
 
