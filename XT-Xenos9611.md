@@ -124,6 +124,20 @@ Deferred until after the first successful build + on-device validation.
 Guardrails: no thermal/voltage/idle sabotage, no forced frequencies, no
 peak-only gains that hurt sustained throughput.
 
+## MANAGER
+
+Use the **KernelSU-Next (KSUN) manager**, version-matched to the pinned
+revision: **v3.4.0** (`KernelSU_Next_v3.4.0_33294-release.apk`). Not the
+original KernelSU manager and not APatch.
+
+The kernel reports its version to the manager via the KSU supercall. Since
+`drivers/kernelsu` is vendored without a `.git`, the Kbuild would otherwise
+fall back to `KSU_VERSION=1` (which the manager rejects), so the build pins
+`KSU_VERSION_OVERRIDE=33294` and `KSU_VERSION_TAG_OVERRIDE=v3.4.0-legacy-susfs-v2`
+(tag `v3.4.0-legacy-susfs-v2`; git-derived value = 30000 + commits + 200) in
+both `build_kernel.py` and the CI step. Verified: the tag string is embedded in
+`Image`.
+
 ## BUILD
 
 Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
@@ -131,7 +145,7 @@ LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
 - Status: **success**
-- Run: `37028945175` (commit `6f1284f6`), branch `ksun-susfs`
+- Run: `37058647255` (commit `486fbfd3`), branch `ksun-susfs`
 - Result: `Image` 37 MB, packaged as `Everline-KSUN_m31_2026-10-02.zip` (16 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
   `CONFIG_KSU_SUSFS=y`, `CONFIG_KSU_SUSFS_SUS_MOUNT=y`
