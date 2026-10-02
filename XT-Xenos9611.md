@@ -130,17 +130,39 @@ Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
 LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
-- Status: _(pending first run)_
-- Run: _(pending)_
+- Status: **success**
+- Run: `37028945175` (commit `6f1284f6`), branch `ksun-susfs`
+- Result: `Image` 37 MB, packaged as `Everline-KSUN_m31_2026-10-02.zip` (16 MB)
+- Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
+  `CONFIG_KSU_SUSFS=y`, `CONFIG_KSU_SUSFS_SUS_MOUNT=y`
+- Embedded markers verified in `Image`: `apply_kernelsu`,
+  `susfs_sus_kstat_spoof_proc_fd_seq_show`
+
+CI run summary: baseline -> KSUN -> SUSFS -> config -> build all compiled with
+zero rejected hunks; the only iterations were the toolchain symlink fix and
+two integration fixes (vendored `uapi/`, `task_mmu.c` externs).
 
 ## PACKAGE
 
 AnyKernel3 (`AnyKernel3/`), packaged by `build_kernel.py` as
 `Everline-KSUN_m31_<date>.zip` containing `Image`, `dtbo.img`, `dtb`.
+CI artifact: `ksun-susfs-m31` (~31.7 MB, includes Image/dtb/dtbo + zip).
+
+**Flash only after keeping a backup of the current boot image.** AnyKernel3
+patches the existing boot image; the original is not modified on-disk until
+the zip is flashed.
 
 ## VALIDATION
 
-_(pending build + flash)_
+**Build-time (done):**
+- Defconfig resolves all KSU/SUSFS symbols.
+- Kernel compiles cleanly with KSUN + SUSFS v2.3.0 (all objects built).
+- `Image` contains `apply_kernelsu` and `susfs_sus_kstat_spoof_proc_fd_seq_show`.
+
+**On-device (pending flash):** KernelSU/KSUN manager reports version and root
+works; `ksud`/module (sidex15/susfs4ksu-module >= v1.5.2) initializes SUSFS;
+SELinux enforcing; suspend/resume; Wi-Fi/BT/camera/audio/network; `dmesg`
+clean of susfs/ksu faults.
 
 ## VERSION
 
