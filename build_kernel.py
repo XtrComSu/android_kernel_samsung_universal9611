@@ -107,7 +107,11 @@ def main():
     make_common = ['make', 'O=out', 'LLVM=1', 'CROSS_COMPILE=aarch64-linux-gnu-',
                    'CC=clang', 'LD=ld.lld', 'AS=llvm-as', 'AR=llvm-ar',
                    'OBJDUMP=llvm-objdump', 'READELF=llvm-readelf', 'NM=llvm-nm',
-                   'OBJCOPY=llvm-objcopy', 'ARCH=arm64', f'-j{os.cpu_count()}']
+                   'OBJCOPY=llvm-objcopy', 'ARCH=arm64', f'-j{os.cpu_count()}',
+                   # drivers/kernelsu is vendored without .git, so pin the
+                   # version the manager sees (KSUN v3.4.0-legacy-susfs-v2).
+                   'KSU_VERSION_OVERRIDE=33294',
+                   'KSU_VERSION_TAG_OVERRIDE=v3.4.0-legacy-susfs-v2']
     make_defconfig = make_common + [f'exynos9611-{args.target}_defconfig']
 
     start_time = datetime.now()

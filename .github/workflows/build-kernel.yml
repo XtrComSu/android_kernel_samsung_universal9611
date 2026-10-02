@@ -83,6 +83,13 @@ jobs:
           grep -m1 'SUSFS_VERSION' include/linux/susfs.h
 
       - name: Build kernel + package (AnyKernel3)
+        env:
+          # The vendored drivers/kernelsu has no .git, so the Kbuild would
+          # otherwise report KSU_VERSION=1 and the manager would refuse it.
+          # These match the pinned KSUN revision (tag v3.4.0-legacy-susfs-v2,
+          # whose git-derived version is 30000 + commits + 200 = 33294).
+          KSU_VERSION_OVERRIDE: "33294"
+          KSU_VERSION_TAG_OVERRIDE: "v3.4.0-legacy-susfs-v2"
         run: |
           set -euo pipefail
           python3 build_kernel.py --target "${TARGET}" --allow-dirty
@@ -97,6 +104,8 @@ jobs:
           echo "===== embedded markers ====="
           strings out/arch/arm64/boot/Image | grep -m1 -i "susfs" || echo " (no susfs string in Image - symbol hiding active)"
           strings out/arch/arm64/boot/Image | grep -m1 -i "KernelSU" || true
+          echo "===== KSU version tag (must be v3.4.0-legacy-susfs-v2) ====="
+          strings out/arch/arm64/boot/Image | grep -m1 "v3.4.0-legacy-susfs-v2" || echo " (tag NOT found!)"
           echo "===== artifacts ====="
           ls -lh *.zip
 
