@@ -1,0 +1,112 @@
+name: Build Kernel (KSUN + SUSFS)
+
+# Builds the XT-Xenos9611 kernel (KernelSU-Next legacy-susfs-v2 + SUSFS v2.3.0)
+# with full LLVM binutils, then packages it with AnyKernel3.
+#
+# Run manually from the Actions tab, or push to the integration branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Device target"
+        required: true
+        default: "m31"
+        type: choice
+        options:
+          - m31
+          - a51
+          - f41
+          - m31s
+          - m21
+          - gta4xl
+          - gta4xlwifi
+      toolchain_url:
+        description: "Clang toolchain tarball URL (must contain bin/clang)"
+        required: false
+        default: "https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz"
+  push:
+    branches:
+      - ksun-susfs
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    env:
+      # Defaults for push-triggered runs (workflow_dispatch inputs win).
+      TARGET: ${{ github.event.inputs.target || 'm31' }}
+      TOOLCHAIN_URL: ${{ github.event.inputs.toolchain_url || 'https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison flex libssl-dev libelf-dev \
+            build-essential zstd xz-utils zip unzip wget cpio rsync \
+            python3 python3-pip
+
+      - name: Fetch and prepare clang toolchain
+        run: |
+          set -euo pipefail
+          echo "Toolchain: $TOOLCHAIN_URL"
+          mkdir -p toolchain /tmp/ts_extract
+          wget -q --show-progress -O /tmp/ts.tar "$TOOLCHAIN_URL"
+          # Support .tar.gz/.tgz/.tar.xz/.tar.zst transparently.
+          tar --use-compress-program='zstd -d' -xf /tmp/ts.tar -C /tmp/ts_extract 2>/dev/null \
+            || tar -xf /tmp/ts.tar -C /tmp/ts_extract
+          # clang is usually a symlink (clang -> clang-16), so match files OR symlinks.
+          CLANG_BIN="$(find /tmp/ts_extract \( -type f -o -type l \) -path '*/bin/clang' | head -1)"
+          if [ -z "$CLANG_BIN" ]; then
+            echo "ERROR: no bin/clang found in toolchain archive"; find /tmp/ts_extract -maxdepth 3 -type d; exit 1
+          fi
+          CLANG_ROOT="$(dirname "$(dirname "$CLANG_BIN")")"
+          cp -a "$CLANG_ROOT"/. toolchain/
+          test -x toolchain/bin/clang
+          ./toolchain/bin/clang --version
+          ls toolchain/bin | grep -E '^(ld\.lld|llvm-(as|ar|nm|objdump|readelf|objcopy))$' || true
+
+      - name: Verify integration inputs
+        run: |
+          set -euo pipefail
+          test -f drivers/kernelsu/Kbuild
+          test -f fs/susfs.c
+          test -f include/linux/susfs.h
+          test -f arch/arm64/configs/exynos9611-${TARGET}_defconfig
+          grep -q "ksu_handle_sys_reboot" kernel/reboot.c
+          grep -m1 'SUSFS_VERSION' include/linux/susfs.h
+
+      - name: Build kernel + package (AnyKernel3)
+        run: |
+          set -euo pipefail
+          python3 build_kernel.py --target "${TARGET}" --allow-dirty
+
+      - name: Post-build verification
+        run: |
+          set -euo pipefail
+          echo "===== effective config ====="
+          grep -E "CONFIG_KSU=|CONFIG_KSU_MANUAL_HOOK=|CONFIG_KSU_SUSFS=|CONFIG_KSU_SUSFS_SUS_MOUNT=" out/.config || true
+          echo "===== Image ====="
+          ls -lh out/arch/arm64/boot/Image
+          echo "===== embedded markers ====="
+          strings out/arch/arm64/boot/Image | grep -m1 -i "susfs" || echo " (no susfs string in Image - symbol hiding active)"
+          strings out/arch/arm64/boot/Image | grep -m1 -i "KernelSU" || true
+          echo "===== artifacts ====="
+          ls -lh *.zip
+
+      - name: Upload kernel package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksun-susfs-${{ github.event.inputs.target || 'm31' }}
+          path: |
+            *.zip
+            out/arch/arm64/boot/Image
+            out/arch/arm64/boot/exynos9611.dtb
+            out/arch/arm64/boot/dtbo-*.img
+          if-no-files-found: error
