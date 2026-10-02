@@ -253,7 +253,7 @@ LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
 - Status: **success**
-- Run: `37072543933` (commit `ec1e49b8`), branch `ksun-susfs`
+- Run: `37074757480` (commit `bad439e3`), branch `ksun-susfs`
 - Result: `Image` 37 MB, packaged as `Everline-KSUN_m31_2026-10-02.zip` (16 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
   `CONFIG_KSU_SUSFS=y`, `CONFIG_KSU_SUSFS_SUS_MOUNT=y`
