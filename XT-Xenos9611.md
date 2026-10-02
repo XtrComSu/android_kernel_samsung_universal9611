@@ -129,9 +129,39 @@ CONFIG_KSU_SUSFS_SUS_MAP=y
 
 ## OPTIMIZATION
 
-Deferred until after the first successful build + on-device validation.
-Guardrails: no thermal/voltage/idle sabotage, no forced frequencies, no
-peak-only gains that hurt sustained throughput.
+Applied (v0.1.0 gaming/AI pass — conservative, no guardrail violations):
+
+- Networking: default TCP congestion control `bic` -> `cubic` (the upstream
+  default; `bic` is a legacy 2004 algorithm). `CONFIG_TCP_CONG_BBR=y` added so
+  BBR is selectable at runtime.
+- GPU: disabled `CONFIG_MALI_GATOR_SUPPORT` (Arm Streamline tracing) and
+  `CONFIG_MALI_MIDGARD_ENABLE_TRACE` (kbase ktrace) — both are pure
+  profiling/instrumentation with per-command overhead on the gaming path and no
+  functional effect otherwise.
+
+Already in place from the vendor defconfig (kept, not changed):
+
+- CPU: `schedutil` is the default governor; `CONFIG_PREEMPT=y`; WALT load
+  tracking; `CONFIG_UCLAMP_TASK=y`; `SIMPLIFIED_ENERGY_MODEL`.
+- I/O: `mq-deadline` default (low latency on UFS/eMMC), kyber also built in.
+- Memory: ZRAM with LZ4 (fastest), MEMCG swap.
+- Exynos: DVFS manager, bus devfreq (`simple_interactive`), page boost.
+
+Deliberately NOT changed (guardrails):
+
+- Thermal protection (`EXYNOS_THERMAL`, `CPU_THERMAL`, ACPM) untouched.
+- No voltage/undervolt changes, no forced/over-clocked frequencies.
+- CPU idle (`CPU_IDLE_GOV_MENU`) left enabled.
+- No peak-only tricks (e.g. `performance` governors or forcing max freq), which
+  would raise peak but hurt sustained throughput and thermals.
+
+Optional runtime knobs (not baked in; tune to taste in an init/ksu script):
+
+- `schedutil/*_rate_limit_us`: lower (e.g. 2000) for snappier ramping, higher
+  (e.g. 10000) for efficiency.
+- GPU interactive boost: `CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST` is available but
+  left off (unvalidated vendor path); enable if you want touch-triggered GPU
+  boost and can tolerate the extra heat.
 
 ## MANAGER
 
