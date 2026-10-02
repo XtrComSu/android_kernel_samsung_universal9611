@@ -128,3 +128,10 @@ kernel/configs/android-*.cfg
 # Samsung
 scripts/crypto/__pycache__/
 scripts/fmp/__pycache__/
+
+# Build output
+/out/
+*.zip
+
+# GitHub Actions (the ".*" rule above would otherwise hide these)
+!.github/
