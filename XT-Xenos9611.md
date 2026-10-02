@@ -138,6 +138,27 @@ Applied (v0.1.0 gaming/AI pass — conservative, no guardrail violations):
   `CONFIG_MALI_MIDGARD_ENABLE_TRACE` (kbase ktrace) — both are pure
   profiling/instrumentation with per-command overhead on the gaming path and no
   functional effect otherwise.
+- GPU (DVFS): enabled `CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST=y` — the vendor's
+  bounded, touch-triggered GPU boost (raises GPU frequency for a fixed duration
+  on interaction). It was off by default; it is a DVFS response, not a forced
+  frequency. Effect depends on the vendor GPU framework invoking the boost API;
+  revert by setting it back to `n`.
+
+### DVFS / voltage — why there is no undervolt
+
+Verified against this tree: the CPU/GPU/bus **frequency and voltage tables are
+not in the kernel**. There are no `opp` tables for 9610/9611 and no `ect` node;
+DVFS is requested from the **ACPM firmware** via `cal_id` (`ACPM_DVFS_CPUCL0/1`,
+`MIF`, `INT`, `G3D`, ...), and `MARGIN_LIT/MARGIN_BIG/...` are enum identifiers,
+not voltages. Voltage tables are parsed from the signed **ECT** partition.
+Consequently a kernel-side undervolt/overclock is not possible without modifying
+signed firmware, which is out of scope ("too radical").
+
+The only kernel-side DVFS knobs are the **bus devfreq domains** (`freq_info` in
+`exynos9610.dts`, governor `simple_interactive`), and those are tunable at
+runtime via `/sys/class/devfreq/*/min_freq|max_freq` (no rebuild). Raising the
+MIF/INT floor was deliberately **not** baked in: it trades battery for heat,
+which tends to *lower* sustained gaming clocks — the opposite of the goal.
 
 Already in place from the vendor defconfig (kept, not changed):
 
@@ -159,9 +180,10 @@ Optional runtime knobs (not baked in; tune to taste in an init/ksu script):
 
 - `schedutil/*_rate_limit_us`: lower (e.g. 2000) for snappier ramping, higher
   (e.g. 10000) for efficiency.
-- GPU interactive boost: `CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST` is available but
-  left off (unvalidated vendor path); enable if you want touch-triggered GPU
-  boost and can tolerate the extra heat.
+- Bus DVFS floor: `/sys/class/devfreq/<mif|int>/min_freq` — raise for more
+  memory/interconnect headroom at the cost of battery and heat (not baked in;
+  `CONFIG_PM_DEVFREQ=y` exposes these).
+- GPU boost: now compiled in (`CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST=y`).
 
 ## MANAGER
 
