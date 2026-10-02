@@ -109,8 +109,9 @@ def main():
                    'OBJDUMP=llvm-objdump', 'READELF=llvm-readelf', 'NM=llvm-nm',
                    'OBJCOPY=llvm-objcopy', 'ARCH=arm64', f'-j{os.cpu_count()}',
                    # drivers/kernelsu is vendored without .git, so pin the
-                   # version the manager sees (KSUN v3.4.0-legacy-susfs-v2).
-                   'KSU_VERSION_OVERRIDE=33294',
+                   # git-derived version for commit d999a2af on
+                   # legacy-susfs-v2: 30000 + 3025 commits + 200 = 33225.
+                   'KSU_VERSION_OVERRIDE=33225',
                    'KSU_VERSION_TAG_OVERRIDE=v3.4.0-legacy-susfs-v2']
     make_defconfig = make_common + [f'exynos9611-{args.target}_defconfig']
 

@@ -132,11 +132,56 @@ original KernelSU manager and not APatch.
 
 The kernel reports its version to the manager via the KSU supercall. Since
 `drivers/kernelsu` is vendored without a `.git`, the Kbuild would otherwise
-fall back to `KSU_VERSION=1` (which the manager rejects), so the build pins
-`KSU_VERSION_OVERRIDE=33294` and `KSU_VERSION_TAG_OVERRIDE=v3.4.0-legacy-susfs-v2`
-(tag `v3.4.0-legacy-susfs-v2`; git-derived value = 30000 + commits + 200) in
-both `build_kernel.py` and the CI step. Verified: the tag string is embedded in
-`Image`.
+fall back to `KSU_VERSION=1`, so the build pins the **real git-derived** value
+for the pinned revision (`legacy-susfs-v2` @ `d999a2af`, 3025 commits:
+`30000 + 3025 + 200 = 33225`) via `KSU_VERSION_OVERRIDE=33225` and
+`KSU_VERSION_TAG_OVERRIDE=v3.4.0-legacy-susfs-v2`.
+
+This is not a borrowed/faked version: the code's own `KERNEL_SU_UAPI_VERSION`
+is **4**, identical to upstream KernelSU-Next `v3.4.0` and `v3.4.0-legacy`, and
+it carries the current toolkit commands (`CHANGE_KSUVER=10011`,
+`CHANGE_SPOOF_UNAME=10012`, `GET_SULOG_DUMP_V2=10010`). Upstream managers
+require kernel >= 33188, so 33225 passes while still being this revision's
+true value. Verified: the tag string is embedded in `Image`.
+
+Manager compatibility note: upstream v3.3.0/v3.4.0 managers gate on
+`version >= 33188` **and** `kernelUAPIVersion == managerUAPIVersion`. Reporting
+`KSU_VERSION=1` (the un-pinned fallback) fails that gate, which is why an
+older manager build can appear to work while a newer one refuses.
+
+## CAPABILITIES
+
+Kernel-side (all confirmed in the built `.config`):
+
+- Modules: `CONFIG_MODULES=y`, `CONFIG_MODULE_UNLOAD=y`, `CONFIG_MODULE_SIG`
+  **off** (no signature enforcement, so modules load).
+- Mounting: `CONFIG_OVERLAY_FS=y`, `CONFIG_FUSE_FS=y`, `CONFIG_TMPFS=y`,
+  `CONFIG_TMPFS_XATTR=y`, `CONFIG_TMPFS_POSIX_ACL=y`.
+  (`OVERLAY_FS_REDIRECT_DIR`/`INDEX` remain off, as in the stock vendor config.)
+- Security: `CONFIG_SECURITY=y`, `CONFIG_SECURITY_SELINUX=y`,
+  `CONFIG_SECURITY_SELINUX_DEVELOP=y`.
+- Symbols: `CONFIG_KALLSYMS=y`, `CONFIG_KALLSYMS_ALL=y`.
+- KernelSU hook prerequisites: `CONFIG_THREAD_INFO_IN_TASK=y`.
+
+SUSFS features compiled in (what `CMD_SUSFS_SHOW_ENABLED_FEATURES` reports):
+
+- `CONFIG_KSU_SUSFS_SUS_PATH`, `SUS_MOUNT`, `SUS_KSTAT`, `SUS_MAP`,
+  `TRY_UMOUNT`, `SPOOF_UNAME`, `SPOOF_CMDLINE_OR_BOOTCONFIG`, `OPEN_REDIRECT`,
+  `ENABLE_LOG`, `HIDE_KSU_SUSFS_SYMBOLS`.
+
+Mounting ("magic mount" / overlayfs):
+
+- Magic mount is a **userspace** feature (manager/`ksud`/module), not a kernel
+  option; it only needs overlayfs, which is enabled. So magisk-style
+  (MetaModule) and overlayfs-based module mounting work with the KernelSU-Next
+  manager / ksud / a mount module.
+- `CONFIG_KSU_SUSFS_SUS_MOUNT` + `TRY_UMOUNT` are enabled so SUSFS can hide
+  suspicious mounts and try-umount paths.
+
+Not available on this branch (would need the `next-susfs` GKI line, which
+requires kprobes/LSM hooks this non-kprobes 4.14 kernel cannot use):
+`CONFIG_KSU_SUSFS_SUS_OVERLAYFS`, `KSU_SUSFS_HAS_MAGIC_MOUNT`, and the
+`AUTO_ADD_SUS_*` auto-hide helpers.
 
 ## BUILD
 
