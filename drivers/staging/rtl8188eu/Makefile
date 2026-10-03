@@ -55,3 +55,12 @@ r8188eu-y :=				\
 obj-$(CONFIG_R8188EU)	:= r8188eu.o
 
 ccflags-y += -I$(srctree)/$(src)/include
+# r8188eu is a legacy staging driver being force-enabled on a clang/-Werror
+# build; silence warnings that would otherwise abort the build.
+ccflags-y += -Wno-logical-not-parentheses -Wno-parentheses-equality \
+             -Wno-address-of-packed-member -Wno-unused-value \
+             -Wno-misleading-indentation -Wno-constant-conversion \
+             -Wno-shift-count-overflow -Wno-enum-conversion \
+             -Wno-tautological-compare -Wno-implicit-fallthrough \
+             -Wno-array-bounds -Wno-stringop-overflow -Wno-format \
+             -Wno-unused-but-set-variable -Wno-pointer-sign
