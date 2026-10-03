@@ -100,6 +100,13 @@ jobs:
           set -euo pipefail
           echo "===== effective config ====="
           grep -E "CONFIG_KSU=|CONFIG_KSU_MANUAL_HOOK=|CONFIG_KSU_SUSFS=|CONFIG_KSU_SUSFS_SUS_MOUNT=" out/.config || true
+          echo "===== external wifi / nethunter (must all be =y) ====="
+          for s in CONFIG_MAC80211 CONFIG_CFG80211 CONFIG_RTL8XXXU CONFIG_MT7601U \
+                   CONFIG_ATH9K_HTC CONFIG_RT2X00 CONFIG_RT2800USB CONFIG_RTL8192CU \
+                   CONFIG_ATH10K CONFIG_ATH10K_USB CONFIG_USB_CONFIGFS_F_HID; do
+            grep -q "^${s}=y" out/.config || { echo "MISSING: $s"; exit 1; }
+          done
+          grep -E "^CONFIG_(LOCALVERSION|MAC80211|RTL8XXXU|MT7601U|ATH9K_HTC|RT2800USB|RTL8192CU|ATH10K_USB|USB_CONFIGFS_F_HID)=" out/.config
           echo "===== Image ====="
           ls -lh out/arch/arm64/boot/Image
           echo "===== embedded markers ====="
