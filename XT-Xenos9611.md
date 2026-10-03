@@ -359,12 +359,14 @@ LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
 - Status: **success**
-- Run: `37114623325` (commit `e455b0d8`), branch `ksun-susfs`
-- Result: `Image` 37 MB, packaged as `Everline-KSUN_m31_2026-10-03.zip` (16 MB)
+- Run: `37119919894` (commit `c1f61cef`), branch `ksun-susfs`
+- Result: `Image` 37 MB, packaged as `XT-Line-KSUN_m31_<date>.zip` (~17 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
-  `CONFIG_KSU_SUSFS=y`, `CONFIG_KSU_SUSFS_SUS_MOUNT=y`
+  `CONFIG_KSU_SUSFS=y`, `CONFIG_KSU_SUSFS_SUS_MOUNT=y`, plus every
+  external-wifi/gadget symbol (the workflow now fails the build if any is
+  missing).
 - Embedded markers verified in `Image`: `apply_kernelsu`,
-  `susfs_sus_kstat_spoof_proc_fd_seq_show`
+  `susfs_sus_kstat_spoof_proc_fd_seq_show`, `linux version 4.14.357-XT-Line-AOSP`
 
 CI run summary: baseline -> KSUN -> SUSFS -> config -> build all compiled with
 zero rejected hunks; the only iterations were the toolchain symlink fix and
@@ -373,7 +375,7 @@ two integration fixes (vendored `uapi/`, `task_mmu.c` externs).
 ## PACKAGE
 
 AnyKernel3 (`AnyKernel3/`), packaged by `build_kernel.py` as
-`Everline-KSUN_m31_<date>.zip` containing `Image`, `dtbo.img`, `dtb`.
+`XT-Line-KSUN_m31_<date>.zip` containing `Image`, `dtbo.img`, `dtb`.
 CI artifact: `ksun-susfs-m31` (~31.7 MB, includes Image/dtb/dtbo + zip).
 
 **Flash only after keeping a backup of the current boot image.** AnyKernel3
