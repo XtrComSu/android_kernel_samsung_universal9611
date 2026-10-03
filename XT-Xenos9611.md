@@ -319,6 +319,31 @@ files. `module.prop` is the one that matters — losing `metamodule=true` silent
 disables the whole metamodule. `nm` rules live only in RAM, so they are always
 re-registered at boot by `metamount.sh`; only the flag is persistent.
 
+**Bootloop root cause (confirmed on this device).** A module that hides files by
+shipping **character-device nodes** (major 0, minor 0) makes `metamount.sh`
+register a *whiteout* for that path — its `find -L "$partition" \( -type c ... \)`
+branch. `lineage_hide` carried such nodes for
+`/system/framework/org.lineageos.platform-res.apk`,
+`.../oat/arm64/org.lineageos.platform.odex` and `.../org.lineageos.platform.vdex`,
+so NoMount hid the LineageOS framework resource APK and its odex/vdex **from the
+system itself**. The framework then cannot load and boot fails. Proven by
+clearing the rules and watching all three files reappear
+(301322 / 822912 / 7064 bytes).
+
+The fix is to disable such a module rather than let NoMount whiteout framework
+paths, and to hide the same traces the *safe* way with SUSFS `sus_path`, which
+only affects app processes (see the STEALTH section). With `lineage_hide`
+disabled, NoMount's entire rule set is one benign file —
+`/vendor/firmware/rtlwifi/rtl8188eufw.bin`.
+
+Two more robustness fixes were applied to the on-device `metamount.sh`:
+pulling `dev`'s `xargs -0 -r -n 200` (master passes an unbounded arg list, and
+because whiteouts and replacements go through *separate* xargs calls an ARG_MAX
+failure can leave a path whiteouted with no replacement), and adding `sync`
+after both the create and the remove of the `.booting` semaphore — without it
+the bootloop guard itself is lost on an unclean shutdown and the device loops
+instead of self-disabling.
+
 ## STEALTH (SUSFS) NOTES
 
 SUSFS itself is wired and complete: every `CMD_SUSFS_*` in
@@ -335,6 +360,32 @@ Therefore "LineageOS traces" that are **system properties**
 (`ro.lineage.*`, `ro.build.fingerprint`, `ro.build.type`, ...) are *not* a
 SUSFS concern — those are userspace. They must be changed with resetprop /
 PlayIntegrityFix / a hiding module, not the kernel.
+
+**Kernel-side stealth additions (this build).** `CONFIG_KSU_SUSFS_SUS_MEMFD` was
+the one SUSFS feature left unset; it is now enabled, so a userspace-defined
+memfd name — the artifact Zygisk-style injectors leave behind — can be
+suppressed. That is the kernel half of hiding injected *memory* from detectors.
+`CONFIG_KSU_SUSFS_SUS_MAP` (already on) hides mmapped real files from
+`/proc/<pid>/{maps,smaps,smaps_rollup,map_files,mem,pagemap}`. Conversely
+`CONFIG_KSU_SUSFS_ENABLE_LOG` is now **off**: SUSFS logging writes its own
+activity into the kernel log, which is itself a detection surface. CI asserts
+all ten SUSFS functions are `=y` and that logging stays disabled.
+
+**Userspace side (on-device, not the kernel).** SUSFS is driven by the `brene`
+module, which reads `/data/adb/susfs4ksu/`. As found, every hiding flag there was
+`0` and every list was empty, so nothing was actually being hidden. Now enabled:
+`hide_cusrom` (hides custom-ROM traces — the *safe* replacement for
+`lineage_hide`'s whiteouts), `hide_vendor_sepolicy`, `hide_compat_matrix`,
+`hide_loops`, `avc_log_spoofing`, `force_hide_lsposed`, `spoof_cmdline`, plus
+`susfs_log=0`. `sus_path.txt` lists the three LineageOS file traces
+(`org.lineageos.platform.jar`, `org.lineageos.platform-res.apk`, `/system/addon.d`).
+Because `sus_path` only affects app processes, the system still loads those files
+normally — which is precisely why this cannot reproduce the bootloop that the
+system-wide whiteouts caused.
+
+Verified on device: `ksud susfs features` reports SUSFS v2.3.0 (NON-GKI), and a
+scan of running app processes found **0** leaked `/data/adb`, zygisk or magisk
+references in `/proc/<pid>/maps`.
 
 Kernel-side leak that SUSFS does *not* cover, fixed here:
 
