@@ -1,8 +1,9 @@
-# XT-Xenos9611
+# XT-Line
 
-Samsung Galaxy M31 (Exynos 9611) kernel with KernelSU-Next + SUSFS.
+Samsung Galaxy M31 (Exynos 9611) kernel — KernelSU-Next + SUSFS, with
+external Wi-Fi adapter and NetHunter-style gadget capabilities.
 
-Version: `XT-Xenos9611 v0.1.0 — Aegis` (codename provisional)
+Version: `XT-Line v0.2.0 — Aegis`
 
 ---
 
@@ -185,6 +186,47 @@ Optional runtime knobs (not baked in; tune to taste in an init/ksu script):
   `CONFIG_PM_DEVFREQ=y` exposes these).
 - GPU boost: now compiled in (`CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST=y`).
 
+## NETWORKING / NETHUNTER CAPABILITIES
+
+Added for external Wi-Fi adapters and NetHunter-style use:
+
+- `CONFIG_MAC80211=y` — **was disabled**. Without it, no softmac USB Wi-Fi
+  adapter (monitor mode / packet injection) can work at all; this was the
+  single biggest gap.
+- USB Wi-Fi drivers available in this 4.14 tree, now enabled: `RTL8XXXU`
+  (RTL8188/8192/8723), `MT7601U`, `ATH9K_HTC`, `RT2800USB` (+ RT33/35/3573/
+  53/55XX), `RTL8192CU`/`RTLWIFI`, `ATH10K_USB`.
+- `CONFIG_USB_CONFIGFS_F_HID=y` — HID gadget, i.e. BadUSB / external
+  keyboard-mouse injection (USB configfs was already enabled).
+- Bluetooth: this tree had `CONFIG_BT` **unset in every exynos9611 defconfig**
+  (no BT stack at all, so the previous kernels had no Bluetooth either). Now
+  enabled: `BT`, `BT_RFCOMM`, `BT_BNEP`, `BT_HIDP`, `BT_LE`, `BT_HCIBTUSB`
+  (USB dongles) and `BT_HCIUART` + `BT_HCIUART_H4`/`BCM` (onboard BCM-over-UART).
+
+Notes:
+
+- Out-of-tree adapters (RTL8812AU/8814AU/8821AU "rtl88xxau", MT76x0U, RTW88)
+  are **not in this 4.14 tree** — those need an out-of-tree driver.
+- USB host/OTG is already present (`USB_XHCI_HCD`), so adapters enumerate.
+- Monitor mode / injection is a driver + userspace concern (aircrack-ng etc.);
+  the kernel now provides the required mac80211/cfg80211 stack.
+
+## MODULE MOUNTING (OVERLAYFS / "HYBRID MOUNT")
+
+Kernel prerequisites are all present: `OVERLAY_FS` (with `REDIRECT_DIR`),
+`TMPFS_XATTR`, `TMPFS_POSIX_ACL`, `FUSE_FS`, SELinux and unsigned-module
+loading.
+
+If modules mount but their files are not visible inside apps, the usual cause
+is **SUSFS hiding KernelSU's own mounts**: `SUS_MOUNT` together with
+`hide_sus_mnts_for_non_su_procs` (on by default in the SUSFS userspace module)
+makes ksud's overlay mounts invisible to non-su processes. Set
+`hide_sus_mnts_for_non_su_procs 0` in the SUSFS module config (or disable
+`SUS_MOUNT`) so apps can see mounted module files.
+
+Also keep only one mounter active — KernelSU-Next's built-in magic mount and
+the "Hybrid Mount" module should not both mount the same modules.
+
 ## STEALTH (SUSFS) NOTES
 
 SUSFS itself is wired and complete: every `CMD_SUSFS_*` in
@@ -207,7 +249,8 @@ Kernel-side leak that SUSFS does *not* cover, fixed here:
 - `/proc/config.gz` (`CONFIG_IKCONFIG` + `CONFIG_IKCONFIG_PROC`) exposed the
   entire kernel config to any app, including `CONFIG_KSU=y` and
   `CONFIG_KSU_SUSFS=y`. Both are now disabled, so there is no `/proc/config.gz`.
-- Still present: `CONFIG_LOCALVERSION="-Everline-AOSP"`, which shows up in
+- `CONFIG_LOCALVERSION="-XT-Line-AOSP"` (renamed from `-Everline-AOSP`), which
+  shows up in
   `/proc/version` as a custom-kernel string. Rename it if you want a neutral
   kernel identity.
 - `CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y` keeps ksu/susfs out of

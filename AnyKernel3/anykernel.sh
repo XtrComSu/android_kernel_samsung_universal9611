@@ -4,7 +4,7 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=Universal Exynos 9611 AOSP kernel
+kernel.string=XT-Line Kernel (Universal Exynos 9611)
 do.devicecheck=1
 do.modules=0
 do.systemless=1

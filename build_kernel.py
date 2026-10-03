@@ -90,7 +90,7 @@ def main():
                                      capture_output=True, text=True).stdout.strip()
 
     display_info({
-        'Kernel name': 'Everline Kernel',
+        'Kernel name': 'XT-Line Kernel',
         'Branch': f'{current_branch}/{current_commit}',
         'Device': args.target,
         'Compiler version': ClangCompiler.get_version(),
@@ -142,7 +142,7 @@ def main():
     copy_file(f'{output_dir}/arch/arm64/boot/Image', f'{anykernel3_dir}/Image')
     copy_file(f'{output_dir}/arch/arm64/boot/dtbo-{args.target}.img', f'{anykernel3_dir}/dtbo.img')
     copy_file(f'{output_dir}/arch/arm64/boot/exynos9611.dtb', f'{anykernel3_dir}/dtb')
-    zip_filename = 'Everline-KSUN_{}_{}.zip'.format(
+    zip_filename = 'XT-Line-KSUN_{}_{}.zip'.format(
         args.target, datetime.today().strftime('%Y-%m-%d'))
 
     os.chdir(anykernel3_dir)
