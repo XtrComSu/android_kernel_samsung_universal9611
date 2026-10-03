@@ -300,6 +300,25 @@ reproducible), one line in `fs/Kconfig`, one in `fs/Makefile`, and
 `CONFIG_NOMOUNT=y` in all seven exynos9611 defconfigs. CI asserts both the
 config symbol and the `nomount` key-type string inside the built Image.
 
+**Troubleshooting — "installed but nothing mounts".** KSUN only treats NoMount
+as the mounter while its `module.prop` contains `metamodule=true`. Without that
+flag the module still shows up in `ksud module list`, `nm version` still
+answers `20`, and `nm rule list` is simply **empty** — `metamount.sh` is never
+invoked, so no module file appears under its target path (`/vendor/firmware/…`,
+`/system/…`). Diagnosed on this device when an unclean shutdown zero-filled
+`module.prop`: the file was exactly the template's 175 bytes, all NUL. Restoring
+the flag and re-running `sh /data/adb/modules/nomount/metamount.sh` (absolute
+path — a relative `$0` makes `MODDIR` `.` and the loader path `./bin/nm` breaks
+once the script `cd`s into a module dir) restores redirection immediately, and
+the normal boot path picks it up again after a reboot.
+
+Relevant detail: `/data` is f2fs mounted `fsync_mode=nobarrier`, so an unclean
+shutdown can zero-fill recently written files. In this incident it also hit
+five `tricky_store/autopif4/*.html` caches plus several logs and 1-byte state
+files. `module.prop` is the one that matters — losing `metamodule=true` silently
+disables the whole metamodule. `nm` rules live only in RAM, so they are always
+re-registered at boot by `metamount.sh`; only the flag is persistent.
+
 ## STEALTH (SUSFS) NOTES
 
 SUSFS itself is wired and complete: every `CMD_SUSFS_*` in
