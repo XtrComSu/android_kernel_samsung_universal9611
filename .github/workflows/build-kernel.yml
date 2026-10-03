@@ -118,6 +118,10 @@ jobs:
             grep -q "^${s}=y" out/.config || { echo "MISSING: $s"; exit 1; }
           done
           grep -E '^CONFIG_DEFAULT_IOSCHED="' out/.config
+          echo "===== tcp congestion default (must stay bic) ====="
+          grep -q '^CONFIG_DEFAULT_TCP_CONG="bic"' out/.config || { echo "MISSING: DEFAULT_TCP_CONG=bic"; exit 1; }
+          grep -q '^CONFIG_DEFAULT_BIC=y' out/.config || { echo "MISSING: DEFAULT_BIC=y"; exit 1; }
+          grep -E '^CONFIG_(DEFAULT_TCP_CONG|DEFAULT_BIC|TCP_CONG_BBR)' out/.config
           echo "===== Image ====="
           ls -lh out/arch/arm64/boot/Image
           echo "===== embedded markers ====="
