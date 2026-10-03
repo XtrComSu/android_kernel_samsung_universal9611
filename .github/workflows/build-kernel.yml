@@ -122,6 +122,12 @@ jobs:
           grep -q '^CONFIG_DEFAULT_TCP_CONG="bic"' out/.config || { echo "MISSING: DEFAULT_TCP_CONG=bic"; exit 1; }
           grep -q '^CONFIG_DEFAULT_BIC=y' out/.config || { echo "MISSING: DEFAULT_BIC=y"; exit 1; }
           grep -E '^CONFIG_(DEFAULT_TCP_CONG|DEFAULT_BIC|TCP_CONG_BBR)' out/.config
+          echo "===== NoMount built-in (metamodule internal API) ====="
+          grep -q '^CONFIG_NOMOUNT=y' out/.config || { echo "MISSING: CONFIG_NOMOUNT=y"; exit 1; }
+          grep -q '^CONFIG_KEYS=y' out/.config   || { echo "MISSING: CONFIG_KEYS=y"; exit 1; }
+          strings out/arch/arm64/boot/Image | grep -qx 'nomount' \
+            || { echo "MISSING: nomount key type string in Image"; exit 1; }
+          echo "  nomount key type registered in Image"
           echo "===== Image ====="
           ls -lh out/arch/arm64/boot/Image
           echo "===== embedded markers ====="
