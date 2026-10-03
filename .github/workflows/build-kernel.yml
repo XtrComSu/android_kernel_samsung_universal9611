@@ -125,6 +125,13 @@ jobs:
           strings out/arch/arm64/boot/Image | grep -m1 -i "KernelSU" || true
           echo "===== KSU version tag (must be v3.3.0-legacy-susfs-v2) ====="
           strings out/arch/arm64/boot/Image | grep -m1 "v3.3.0-legacy-susfs-v2" || echo " (tag NOT found!)"
+          echo "===== external module: r8188eu.ko (RTL8188EU/EUS USB wifi) ====="
+          grep -q "^CONFIG_R8188EU=m" out/.config || { echo "MISSING: CONFIG_R8188EU=m"; exit 1; }
+          KO="$(find out -name r8188eu.ko | head -1)"
+          [ -n "$KO" ] || { echo "ERROR: r8188eu.ko was not built"; exit 1; }
+          mkdir -p kmods
+          cp "$KO" kmods/
+          ls -lh kmods/r8188eu.ko
           echo "===== artifacts ====="
           ls -lh *.zip
 
@@ -134,6 +141,7 @@ jobs:
           name: ksun-susfs-${{ github.event.inputs.target || 'm31' }}
           path: |
             *.zip
+            kmods/*.ko
             out/arch/arm64/boot/Image
             out/arch/arm64/boot/exynos9611.dtb
             out/arch/arm64/boot/dtbo-*.img
