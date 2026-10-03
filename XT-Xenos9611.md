@@ -185,6 +185,64 @@ Optional runtime knobs (not baked in; tune to taste in an init/ksu script):
   `CONFIG_PM_DEVFREQ=y` exposes these).
 - GPU boost: now compiled in (`CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST=y`).
 
+## STEALTH (SUSFS) NOTES
+
+SUSFS itself is wired and complete: every `CMD_SUSFS_*` in
+`drivers/kernelsu/supercall/supercall.c` dispatches to the kernel
+implementation in `fs/susfs.c`, and all features are compiled in (see
+CAPABILITIES). No SUSFS version gate exists between the KSU glue and the
+kernel side.
+
+What SUSFS hides is **only what you configure** (`sus_path`, `sus_mount`,
+`sus_kstat`, `sus_map`, `open_redirect`, `try_umount`), and it applies to
+zygote-spawned app processes. It does **not** invent traces to hide.
+
+Therefore "LineageOS traces" that are **system properties**
+(`ro.lineage.*`, `ro.build.fingerprint`, `ro.build.type`, ...) are *not* a
+SUSFS concern — those are userspace. They must be changed with resetprop /
+PlayIntegrityFix / a hiding module, not the kernel.
+
+Kernel-side leak that SUSFS does *not* cover, fixed here:
+
+- `/proc/config.gz` (`CONFIG_IKCONFIG` + `CONFIG_IKCONFIG_PROC`) exposed the
+  entire kernel config to any app, including `CONFIG_KSU=y` and
+  `CONFIG_KSU_SUSFS=y`. Both are now disabled, so there is no `/proc/config.gz`.
+- Still present: `CONFIG_LOCALVERSION="-Everline-AOSP"`, which shows up in
+  `/proc/version` as a custom-kernel string. Rename it if you want a neutral
+  kernel identity.
+- `CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y` keeps ksu/susfs out of
+  `/proc/kallsyms`.
+
+## UPSTREAMING ASSESSMENT (Exynos 9611 -> 5.15 / 6.x / 7.x)
+
+Checked against a current mainline tree (v7.2 / v7.3-rc): **mainline has no
+Exynos 9610/9611 support at all** — no clock driver, no pinctrl, no
+`drivers/soc/samsung` support and no DTS entry. Nearby SoCs *are* mainlined
+(exynos7870, 7885, 850, 8895, 9810, 990, 2200 and exynosautov9/920), so it is
+not impossible in principle, but 9610/9611 specifically has zero upstream
+support today.
+
+Scale and blockers in this tree:
+
+- ~631 MB of drivers, ~29.5k files in `drivers/` + `arch/arm64/boot/dts/exynos`.
+- Core power/DVFS runs through the Samsung **ACPM firmware** interface
+  (`samsung,exynos-acpm*`) — there is no mainline driver for it.
+- GPU is the vendor **Mali Bifrost DDK** (`bv_r38p1`); mainline would use
+  Panfrost instead.
+- Modem, ISP/camera, audio, display and the Samsung security stack are
+  vendor-only.
+
+Verdict:
+
+- Full upstream to 5.15/6.2/7.x **as a working phone: not realistic.** It
+  requires Samsung's unpublished hardware documentation (ACPM, ISP, modem) and
+  is a multi-year, multi-engineer effort, plus mainline review.
+- A partial "boots Linux, limited peripherals" bring-up is conceivable but
+  would lose the phone stack, and is still months-to-years of work.
+- Practical path for a working M31 remains this vendor 4.14 kernel (Samsung
+  never released a newer one for 9610/9611). GKI / vendor-module upgrading is
+  not available either, because this SoC predates GKI.
+
 ## MANAGER
 
 Use the **KernelSU-Next (KSUN) manager v3.3.0** —
