@@ -103,6 +103,17 @@ jobs:
           set -euo pipefail
           echo "===== effective config ====="
           grep -E "CONFIG_KSU=|CONFIG_KSU_MANUAL_HOOK=|CONFIG_KSU_SUSFS=|CONFIG_KSU_SUSFS_SUS_MOUNT=" out/.config || true
+          echo "===== susfs stealth features (must all be =y) ====="
+          for s in CONFIG_KSU_SUSFS_SUS_PATH CONFIG_KSU_SUSFS_SUS_MOUNT \
+                   CONFIG_KSU_SUSFS_SUS_KSTAT CONFIG_KSU_SUSFS_TRY_UMOUNT \
+                   CONFIG_KSU_SUSFS_SPOOF_UNAME CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
+                   CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG CONFIG_KSU_SUSFS_OPEN_REDIRECT \
+                   CONFIG_KSU_SUSFS_SUS_MAP CONFIG_KSU_SUSFS_SUS_MEMFD; do
+            grep -q "^${s}=y" out/.config || { echo "MISSING: $s"; exit 1; }
+          done
+          grep -q '^# CONFIG_KSU_SUSFS_ENABLE_LOG is not set' out/.config \
+            || { echo "SUSFS logging must stay disabled for stealth"; exit 1; }
+          echo "  susfs stealth features OK (logging disabled)"
           echo "===== external wifi / nethunter (must all be =y) ====="
           for s in CONFIG_MAC80211 CONFIG_CFG80211 CONFIG_RTL8XXXU CONFIG_MT7601U \
                    CONFIG_ATH9K_HTC CONFIG_RT2X00 CONFIG_RT2800USB CONFIG_RTL8192CU \
