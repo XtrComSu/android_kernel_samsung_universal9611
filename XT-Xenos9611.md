@@ -132,9 +132,12 @@ CONFIG_KSU_SUSFS_SUS_MAP=y
 
 Applied (v0.1.0 gaming/AI pass — conservative, no guardrail violations):
 
-- Networking: default TCP congestion control `bic` -> `cubic` (the upstream
-  default; `bic` is a legacy 2004 algorithm). `CONFIG_TCP_CONG_BBR=y` added so
-  BBR is selectable at runtime.
+- Networking: **reverted.** An earlier pass moved the default TCP congestion
+  control from `bic` to `cubic` and enabled BBR; both were rolled back at the
+  user's request, so the kernel again ships `DEFAULT_BIC=y`,
+  `DEFAULT_TCP_CONG="bic"` and `CONFIG_TCP_CONG_BBR` unset. Note that both the
+  choice symbol (`DEFAULT_BIC`) and the derived string had to be changed — the
+  string alone does nothing. CI now asserts `bic` is the default.
 - GPU: disabled `CONFIG_MALI_GATOR_SUPPORT` (Arm Streamline tracing) and
   `CONFIG_MALI_MIDGARD_ENABLE_TRACE` (kbase ktrace) — both are pure
   profiling/instrumentation with per-command overhead on the gaming path and no
