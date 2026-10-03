@@ -208,6 +208,17 @@ Added for external Wi-Fi adapters and NetHunter-style use:
   the code compiles without its declarations. Restoring those functions is
   required before `BT` — and therefore NetHunter USB-BT dongles — can work.
 
+- RTL8188EU/EUS adapters (`0bda:8179`, e.g. TP-Link TL-WN725N): `r8188eu`
+  lives in `drivers/staging/rtl8188eu` and its USB table lists `0bda:8179`,
+  but its Kconfig is `depends on m` — **module-only, never built-in**. It is
+  now built as `CONFIG_R8188EU=m` and shipped as `r8188eu.ko` (vermagic
+  `4.14.357-XT-Line-AOSP ... aarch64`). Load it with
+  `insmod /path/r8188eu.ko`, or install `r8188eu-loader.zip` in the KernelSU
+  manager for auto-load at boot. Building it needed two fixes: a
+  `-Wlogical-not-parentheses` rewrite in `rtw_ieee80211.c:309` and
+  clang-safe `-Wno-error`/`-Wno-unknown-warning-option` ccflags for the
+  driver.
+
 Notes:
 
 - Out-of-tree adapters (RTL8812AU/8814AU/8821AU "rtl88xxau", MT76x0U, RTW88)
