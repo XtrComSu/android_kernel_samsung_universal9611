@@ -91,6 +91,9 @@ jobs:
           # v3.3.0 manager (UAPI 2).
           KSU_VERSION_OVERRIDE: "33214"
           KSU_VERSION_TAG_OVERRIDE: "v3.3.0-legacy-susfs-v2"
+          # Keep the runner's user/host out of /proc/version (stealth).
+          KBUILD_BUILD_USER: "builder"
+          KBUILD_BUILD_HOST: "localhost"
         run: |
           set -euo pipefail
           python3 build_kernel.py --target "${TARGET}" --allow-dirty
@@ -107,6 +110,14 @@ jobs:
             grep -q "^${s}=y" out/.config || { echo "MISSING: $s"; exit 1; }
           done
           grep -E "^CONFIG_(LOCALVERSION|MAC80211|RTL8XXXU|MT7601U|ATH9K_HTC|RT2800USB|RTL8192CU|ATH10K_USB|USB_CONFIGFS_F_HID)=" out/.config
+          echo "===== tuning / stealth / nethunter extras (must all be =y) ====="
+          for s in CONFIG_IOSCHED_BFQ CONFIG_KPROBES CONFIG_SECURITY_DMESG_RESTRICT \
+                   CONFIG_USB_SERIAL_OPTION CONFIG_USB_NET_RNDIS_HOST \
+                   CONFIG_USB_CONFIGFS_MASS_STORAGE CONFIG_USB_CONFIGFS_F_UAC1 \
+                   CONFIG_USB_CONFIGFS_F_UAC2 CONFIG_INPUT_JOYDEV; do
+            grep -q "^${s}=y" out/.config || { echo "MISSING: $s"; exit 1; }
+          done
+          grep -E '^CONFIG_DEFAULT_IOSCHED="' out/.config
           echo "===== Image ====="
           ls -lh out/arch/arm64/boot/Image
           echo "===== embedded markers ====="
