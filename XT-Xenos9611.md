@@ -271,6 +271,35 @@ makes ksud's overlay mounts invisible to non-su processes. Set
 Also keep only one mounter active — KernelSU-Next's built-in magic mount and
 the "Hybrid Mount" module should not both mount the same modules.
 
+## NOMOUNT (BUILT-IN VFS PATH REDIRECTION)
+
+`fs/nomount/` carries maxsteeel/nomount **v20**, integrated built-in. This is the
+out-of-tree VFS path-redirection subsystem used by the NoMount metamodule for
+KernelSU-Next / APatch.
+
+Why built-in rather than the shipped LKM: the metamodule's release ZIP carries
+prebuilt `nomount-android*.ko` only for GKI 5.10 / 5.15 / 6.1 / 6.6 / 6.12. On a
+legacy kernel those will not load, because the internal VFS symbols the driver
+relies on are not exported to modules — upstream's own README states that
+legacy (<5.10) kernels must integrate it in-tree. Hence `CONFIG_NOMOUNT=y`.
+
+How presence is detected (the "Internal API" the installer probes for): the
+subsystem registers a **key type named `nomount`** from `fs_initcall`, so the
+metamodule's kernel-support check succeeds once this kernel is flashed. That
+requires `CONFIG_KEYS=y`, which is already set in every defconfig.
+
+4.14 compatibility: the compat layer in `nomount.h` / `nomount.c` already covers
+this generation — the pre-4.11 `getattr` signature, the empty `IDMAP_*` branch
+(below 5.12), the `NM_ACTOR_RET` / `FLAGS_ARG` shims and a `DCACHE_DONTCACHE`
+stub. The `MODULE_IMPORT_NS` block at the end of `nomount.c` is wrapped in
+`LINUX_VERSION_CODE >= 5.0`, so it is not compiled on 4.14.
+
+Files: `fs/nomount/{nomount.c,nomount.h,Kconfig,Makefile}` (vendored, *not*
+symlinked to an out-of-tree clone as `setup.sh` does, so the CI build stays
+reproducible), one line in `fs/Kconfig`, one in `fs/Makefile`, and
+`CONFIG_NOMOUNT=y` in all seven exynos9611 defconfigs. CI asserts both the
+config symbol and the `nomount` key-type string inside the built Image.
+
 ## STEALTH (SUSFS) NOTES
 
 SUSFS itself is wired and complete: every `CMD_SUSFS_*` in
