@@ -198,10 +198,15 @@ Added for external Wi-Fi adapters and NetHunter-style use:
   53/55XX), `RTL8192CU`/`RTLWIFI`, `ATH10K_USB`.
 - `CONFIG_USB_CONFIGFS_F_HID=y` — HID gadget, i.e. BadUSB / external
   keyboard-mouse injection (USB configfs was already enabled).
-- Bluetooth: this tree had `CONFIG_BT` **unset in every exynos9611 defconfig**
-  (no BT stack at all, so the previous kernels had no Bluetooth either). Now
-  enabled: `BT`, `BT_RFCOMM`, `BT_BNEP`, `BT_HIDP`, `BT_LE`, `BT_HCIBTUSB`
-  (USB dongles) and `BT_HCIUART` + `BT_HCIUART_H4`/`BCM` (onboard BCM-over-UART).
+- Bluetooth: **not enabled.** This tree has `CONFIG_BT` unset in every
+  exynos9611 defconfig, and turning it on **fails to build** because the vendor
+  import neutered the core HCI socket operations: `hci_sock_release`,
+  `hci_sock_ioctl`, `hci_sock_bind`, `hci_sock_getname` and `hci_sock_create`
+  in `net/bluetooth/hci_sock.c` (plus one function in
+  `net/bluetooth/l2cap_core.c`) are stubbed. Their bodies are present but
+  wrapped in a `/* ... */` block that is closed early by a nested comment, so
+  the code compiles without its declarations. Restoring those functions is
+  required before `BT` — and therefore NetHunter USB-BT dongles — can work.
 
 Notes:
 
