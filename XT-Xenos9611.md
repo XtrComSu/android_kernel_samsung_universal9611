@@ -216,6 +216,31 @@ Notes:
 - Monitor mode / injection is a driver + userspace concern (aircrack-ng etc.);
   the kernel now provides the required mac80211/cfg80211 stack.
 
+## TUNING / HOOKS / HARDENING
+
+- I/O scheduler: `CONFIG_IOSCHED_BFQ=y` — BFQ was already in-tree
+  (`block/bfq-iosched.c`, registered as `iosched_bfq_mq` with `uses_mq = true`,
+  i.e. **blk-mq only**) but disabled, so it was not even selectable. It is now
+  available alongside `mq-deadline` and `kyber`.
+  The device storage is UFS (`13520000.ufs`) and every queue is blk-mq; the
+  active scheduler is `[mq-deadline]`. That stays the **default**: on fast UFS
+  mq-deadline/kyber generally beat BFQ, whose advantage is on slow storage.
+  BFQ is opt-in per device:
+  `echo bfq > /sys/block/sda/queue/scheduler`.
+  Note `CONFIG_DEFAULT_IOSCHED` has no prompt, so kconfig always recomputes it
+  and the defconfig string is cosmetic.
+- `CONFIG_KPROBES=y` — was off, and that is precisely what forced the
+  manual-hook KernelSU line. Enabling it makes kprobe infrastructure available
+  (a prerequisite for kprobe-based KSU/SUSFS variants and for runtime-probing
+  tools). Hook mode is still `CONFIG_KSU_MANUAL_HOOK=y`; switching to kprobe
+  hooks is a separate change and needs the matching KSUN branch.
+- `CONFIG_SECURITY_DMESG_RESTRICT=y` — dmesg readable by root only.
+- CI pins `KBUILD_BUILD_USER=builder` / `KBUILD_BUILD_HOST=localhost` so the
+  runner identity no longer leaks into `/proc/version`.
+- NetHunter extras: `USB_SERIAL_OPTION` (3G/4G/GPS dongles),
+  `USB_NET_RNDIS_HOST`, `USB_CONFIGFS_MASS_STORAGE`,
+  `USB_CONFIGFS_F_UAC1`/`UAC2` (USB audio for Y-cables), `INPUT_JOYDEV`.
+
 ## MODULE MOUNTING (OVERLAYFS / "HYBRID MOUNT")
 
 Kernel prerequisites are all present: `OVERLAY_FS` (with `REDIRECT_DIR`),
