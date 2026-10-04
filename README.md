@@ -88,6 +88,13 @@ SUSFS hiding only applies to **umounted app processes**, so it cannot be validat
 
 ## Known limitations
 
+- **SUSFS cannot hide installed packages.** It is a kernel-only, VFS-level feature: it
+  hides *files*, `/proc/<pid>/maps` entries, mounts and `stat` results — and needs no
+  Zygisk. But a detector that enumerates packages through `PackageManager` (this ROM
+  ships 13 packages matching `lineage`, incl. the framework package
+  `lineageos.platform`) cannot be defeated by SUSFS at any configuration. Package
+  hiding requires a **Zygisk/Xposed** module, which reintroduces in-memory injection
+  artifacts. That trade-off is real and unavoidable.
 - **`/data` is f2fs with `fsync_mode=nobarrier`.** An unclean shutdown can zero-fill
   recently-written files while preserving their size. This has already destroyed
   NoMount's `module.prop` (twice) and one module's payload. Reflash to repair.
@@ -96,6 +103,9 @@ SUSFS hiding only applies to **umounted app processes**, so it cannot be validat
   bootloops the device — that is exactly what happened with `lineage_hide`.
 - **`CONFIG_KSU_SUSFS_SUS_MEMFD` cannot be enabled**: SUSFS v2.3.0 does not implement
   it, and enabling it fails the build. Memory hiding uses `SUS_MAP` instead.
+- **SUSFS hiding also requires the target to be an umounted app**: a process with root
+  granted is never marked umounted, so hiding is skipped for it. Keep detector apps
+  un-rooted.
 - Kernel logs are restricted and SUSFS logging is off; debugging hiding behaviour
   requires temporarily re-enabling it.
 

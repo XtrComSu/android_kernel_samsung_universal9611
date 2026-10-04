@@ -89,7 +89,47 @@ every build. **Do not "clean these up" without understanding why they are there.
 
 ---
 
-## 4. Device-side state (NOT in this repo — back it up before wiping)
+## 4. What SUSFS can and cannot hide (read before chasing a "SUSFS is broken" report)
+
+**SUSFS is kernel-only — it does not use Zygisk, and does not need it.** It works in
+the VFS: `sus_path` hides paths, `sus_map` hides mmapped files, `sus_mount`/`try_umount`
+hide mounts, `sus_kstat` spoofs stat, `open_redirect` redirects opens. All of it is
+gated on `susfs_is_current_proc_umounted_app()` (see §3.7).
+
+That design draws a hard line:
+
+| Trace type | Can SUSFS hide it? | How |
+|---|---|---|
+| Files on `/system`, `/system_ext`, `/vendor`, `/product` | **Yes** | `sus_path` / `sus_path_loop` |
+| Files in `/proc/<pid>/maps` | **Yes** | `sus_map` |
+| Suspicious mounts | **Yes** | `sus_mount`, `try_umount` |
+| Paths shown by `stat` | **Yes** | `sus_kstat` |
+| **Installed packages via `PackageManager`** | **No** | Kernel cannot intercept `pm list packages` |
+| **System properties** | **No** | Userspace — needs resetprop / PIF |
+| App-private in-memory state | **No** | Needs Zygisk/Xposed hooks |
+
+**Consequence:** a detector that enumerates *installed packages* (Duck Detector does —
+this ROM ships **13** matching `lineage`, including the framework package
+`lineageos.platform`) cannot be defeated by SUSFS, no matter how the path lists are
+configured. Hiding packages requires a **Zygisk/Xposed** module (`targetedhide`, HMA),
+which is a userspace hook that SUSFS deliberately is not.
+
+Diagnostic signature seen on this device: `targetedhide`, `zygisk_vector`,
+`onyxzygisk` and `hma_oss_zygisk` all *enabled*, yet the detector's own process shows
+**0** `/data/adb` or zygisk paths in `/proc/<pid>/maps` — i.e. it is **not injected**,
+so every Zygisk-based hiding module is inert for it. Enabling Zygisk fixes package
+hiding but reintroduces the in-memory injection artifacts that Zygisk-off was avoiding.
+That is a genuine trade-off, not a bug — present it as one.
+
+Before blaming SUSFS, check in this order:
+1. Is the config in `/data/adb/brene/` (not the inert `susfs4ksu`)? (§5)
+2. Is the path registered with **both** `add_sus_map` and `add_sus_path_loop`?
+3. Is the target an **app** process (uid ≥ 10000) and not root-granted?
+4. Is the trace a **file** at all — or is it a package / property / memory artifact?
+
+---
+
+## 5. Device-side state (NOT in this repo — back it up before wiping)
 
 | Path | Meaning |
 |---|---|
@@ -113,7 +153,7 @@ Note `config_hide_framework_res_apk` matches `*framework-res.apk` and therefore 
 
 ---
 
-## 5. Build & verify
+## 6. Build & verify
 
 ```sh
 # CI entry point (this is the supported path)
@@ -142,7 +182,7 @@ A healthy NoMount state has exactly **one** redirection
 
 ---
 
-## 6. Do not
+## 7. Do not
 
 - Do not enable `SUS_MEMFD` (build breaks; see §2).
 - Do not add `CONFIG_X=y` above an existing `# CONFIG_X is not set` (see §3.1).
