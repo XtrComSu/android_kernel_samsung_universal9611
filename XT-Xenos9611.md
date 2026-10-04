@@ -368,24 +368,48 @@ suppressed. That is the kernel half of hiding injected *memory* from detectors.
 `CONFIG_KSU_SUSFS_SUS_MAP` (already on) hides mmapped real files from
 `/proc/<pid>/{maps,smaps,smaps_rollup,map_files,mem,pagemap}`. Conversely
 `CONFIG_KSU_SUSFS_ENABLE_LOG` is now **off**: SUSFS logging writes its own
-activity into the kernel log, which is itself a detection surface. CI asserts
-all ten SUSFS functions are `=y` and that logging stays disabled.
+activity into the kernel log, which is itself a detection surface. CI asserts all nine
+*implemented* SUSFS features are `=y`, that logging stays disabled, and that SUS_MEMFD
+stays **off** — it is a phantom option in this tree (see CHANGELOG.md §3).
 
-**Userspace side (on-device, not the kernel).** SUSFS is driven by the `brene`
-module, which reads `/data/adb/susfs4ksu/`. As found, every hiding flag there was
-`0` and every list was empty, so nothing was actually being hidden. Now enabled:
-`hide_cusrom` (hides custom-ROM traces — the *safe* replacement for
-`lineage_hide`'s whiteouts), `hide_vendor_sepolicy`, `hide_compat_matrix`,
-`hide_loops`, `avc_log_spoofing`, `force_hide_lsposed`, `spoof_cmdline`, plus
-`susfs_log=0`. `sus_path.txt` lists the three LineageOS file traces
-(`org.lineageos.platform.jar`, `org.lineageos.platform-res.apk`, `/system/addon.d`).
-Because `sus_path` only affects app processes, the system still loads those files
-normally — which is precisely why this cannot reproduce the bootloop that the
-system-wide whiteouts caused.
+**Userspace side (on-device, not the kernel).** SUSFS is driven by the **`brene`**
+module, which reads **`/data/adb/brene/`** — *not* `/data/adb/susfs4ksu/`. That second
+directory is a leftover from the old `susfs4ksu` module, which `brene/customize.sh`
+explicitly disables (`touch .../susfs4ksu/disable`); editing it has **no effect**.
 
-Verified on device: `ksud susfs features` reports SUSFS v2.3.0 (NON-GKI), and a
-scan of running app processes found **0** leaked `/data/adb`, zygisk or magisk
-references in `/proc/<pid>/maps`.
+`/data/adb/brene/config.sh` holds the feature flags, and four lists are consumed by
+`boot-completed.sh`:
+
+| File | Registered via |
+|---|---|
+| `custom_sus_path.txt` | `add_sus_path` (weaker — does not re-flag at spawn) |
+| `custom_sus_path_loop.txt` | `add_sus_path_loop` (**prefer this**) |
+| `custom_sus_map.txt` | `add_sus_map` |
+| `custom_kernel_umount.txt` | `ksud kernel umount add` |
+
+The pattern brene itself uses for every path it hides is **both** `add_sus_map` *and*
+`add_sus_path_loop`; using only the plain `add_sus_path` is why a path can appear to be
+configured yet stay visible. In use here: `hide_cusrom`, `hide_vendor_sepolicy`,
+`hide_compat_matrix`, `hide_loops`, `avc_log_spoofing`, `force_hide_lsposed`,
+`spoof_cmdline`, `susfs_log=0`, the three LineageOS file traces in both
+`custom_sus_path_loop.txt` and `custom_sus_map.txt`, and the Zygisk/injection libraries
+in `custom_sus_map.txt`.
+
+Two things to know before trusting a result:
+
+- `config_hide_framework_res_apk` matches `*framework-res.apk`, so it does **not**
+  cover this ROM's `org.lineageos.platform-res.apk`. It also calls only `sus_map`,
+  which hides a path from `/proc/<pid>/maps` but not from existence.
+- Hiding is gated in `fs/susfs.c` on `susfs_is_current_proc_umounted_app()` plus the
+  inode owner differing from the caller's uid. A `su <uid> -c ...` process runs in the
+  `u:r:ksu:s0` context and is **not** a valid probe — a "still visible" result from one
+  proves nothing. Validate with a real app.
+
+Verified on device: `ksud susfs features` reports SUSFS v2.3.0 (NON-GKI) with 9/9
+features, `brene`'s own status reads
+`[Status: Active ✅ | SuSFS: v2.3.0 (NON-GKI) | SuSFS Features: 9/9 enabled]`, the
+`susfs` CLI accepts every registration with `rc=0`, and a scan of running app processes
+found **0** leaked `/data/adb`, zygisk or magisk references in `/proc/<pid>/maps`.
 
 Kernel-side leak that SUSFS does *not* cover, fixed here:
 
