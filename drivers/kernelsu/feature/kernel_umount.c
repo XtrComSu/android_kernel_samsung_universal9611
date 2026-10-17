@@ -13,7 +13,7 @@
 #include <linux/syscalls.h>
 #endif
 
-#include "kernel_umount.h"
+#include "feature/kernel_umount.h"
 #include "klog.h" // IWYU pragma: keep
 #include "policy/allowlist.h"
 #include "selinux/selinux.h"
@@ -82,6 +82,7 @@ static void ksu_sys_umount(const char *mnt, int flags)
 	})
 
 #endif
+
 #if !defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
 static void try_umount(const char *mnt, int flags)
 #else
@@ -128,6 +129,7 @@ static void umount_tw_func(struct callback_head *cb)
 int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
 {
 	struct umount_tw *tw;
+
 #if defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
 	// if there isn't any module mounted, just ignore it!
 	if (!ksu_module_mounted) {
@@ -142,16 +144,16 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
 		return 0;
 	}
 
-    // There are 6 scenarios:
-    // 1. Normal app: zygote -> appuid
-    // 2. Isolated process forked from zygote: zygote -> isolated_process
-    // 3. App zygote forked from zygote: zygote -> appuid
-    // 4. Webview zygote forked from zygote: zygote -> WEBVIEW_ZYGOTE_UID (no need to handle, app cannot run custom code)
-    // 5. Isolated process forked from app zygote: appuid -> isolated_process (already handled by 3)
-    // 6. Isolated process forked from webview zygote (no need to handle, app cannot run custom code)
-    if (!is_appuid(new_uid) && !is_isolated_process(new_uid)) {
-        return 0;
-    }
+	// There are 6 scenarios:
+	// 1. Normal app: zygote -> appuid
+	// 2. Isolated process forked from zygote: zygote -> isolated_process
+	// 3. App zygote forked from zygote: zygote -> appuid
+	// 4. Webview zygote forked from zygote: zygote -> webview_zygote
+	// 5. Isolated process forked from app zygote: appuid -> isolated_process (already handled by 3)
+	// 6. Isolated process forked from webview zygote (already handled by 4)
+	if (!is_appuid(new_uid) && new_uid != WEBVIEW_ZYGOTE_UID && !is_isolated_process(new_uid)) {
+		return 0;
+	}
 
 	if (!ksu_uid_should_umount(new_uid) && !is_isolated_process(new_uid)) {
 		return 0;
@@ -163,8 +165,7 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
 	// also handle case 4 and 5
 	bool is_zygote_child = is_zygote(current_cred());
 	if (!is_zygote_child) {
-		pr_info("handle umount ignore non zygote child: %d\n",
-			current->pid);
+		pr_info("handle umount ignore non zygote child: %d\n", current->pid);
 		return 0;
 	}
 #endif // #if defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
@@ -185,7 +186,7 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
 
 	return 0;
 }
-#endif // #if defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
+#endif // #if !defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
 
 void __init ksu_kernel_umount_init(void)
 {

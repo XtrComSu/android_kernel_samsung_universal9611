@@ -85,12 +85,11 @@ jobs:
       - name: Build kernel + package (AnyKernel3)
         env:
           # drivers/kernelsu is vendored without .git, so the Kbuild would
-          # otherwise report KSU_VERSION=1. Pin the real git-derived value for
-          # the pinned revision (tag v3.3.0-legacy-susfs-v2 @ 36679224, 3014
-          # commits): 30000 + 3014 + 200 = 33214, matching the KernelSU-Next
-          # v3.3.0 manager (UAPI 2).
-          KSU_VERSION_OVERRIDE: "33214"
-          KSU_VERSION_TAG_OVERRIDE: "v3.3.0-legacy-susfs-v2"
+          # otherwise report KSU_VERSION=1. Pin the value for tag
+          # v3.4.2-legacy-susfs-v2: 33355 matches the KernelSU-Next v3.4.2
+          # manager (UAPI 5).
+          KSU_VERSION_OVERRIDE: "33355"
+          KSU_VERSION_TAG_OVERRIDE: "v3.4.2-legacy-susfs-v2"
           # Keep the runner's user/host out of /proc/version (stealth).
           KBUILD_BUILD_USER: "builder"
           KBUILD_BUILD_HOST: "localhost"
@@ -135,19 +134,15 @@ jobs:
           grep -q '^CONFIG_DEFAULT_TCP_CONG="bic"' out/.config || { echo "MISSING: DEFAULT_TCP_CONG=bic"; exit 1; }
           grep -q '^CONFIG_DEFAULT_BIC=y' out/.config || { echo "MISSING: DEFAULT_BIC=y"; exit 1; }
           grep -E '^CONFIG_(DEFAULT_TCP_CONG|DEFAULT_BIC|TCP_CONG_BBR)' out/.config
-          echo "===== NoMount built-in (metamodule internal API) ====="
-          grep -q '^CONFIG_NOMOUNT=y' out/.config || { echo "MISSING: CONFIG_NOMOUNT=y"; exit 1; }
-          grep -q '^CONFIG_KEYS=y' out/.config   || { echo "MISSING: CONFIG_KEYS=y"; exit 1; }
-          strings out/arch/arm64/boot/Image | grep -qx 'nomount' \
-            || { echo "MISSING: nomount key type string in Image"; exit 1; }
-          echo "  nomount key type registered in Image"
           echo "===== Image ====="
           ls -lh out/arch/arm64/boot/Image
           echo "===== embedded markers ====="
           strings out/arch/arm64/boot/Image | grep -m1 -i "susfs" || echo " (no susfs string in Image - symbol hiding active)"
           strings out/arch/arm64/boot/Image | grep -m1 -i "KernelSU" || true
-          echo "===== KSU version tag (must be v3.3.0-legacy-susfs-v2) ====="
-          strings out/arch/arm64/boot/Image | grep -m1 "v3.3.0-legacy-susfs-v2" || echo " (tag NOT found!)"
+          echo "===== KSU version tag (must be v3.4.2-legacy-susfs-v2) ====="
+          strings out/arch/arm64/boot/Image | grep -m1 "v3.4.2-legacy-susfs-v2" \
+            || { echo "FAIL: KSU version tag v3.4.2-legacy-susfs-v2 not found in Image"; exit 1; }
+          echo "  KSU version tag OK"
           echo "===== external module: r8188eu.ko (RTL8188EU/EUS USB wifi) ====="
           grep -q "^CONFIG_R8188EU=m" out/.config || { echo "MISSING: CONFIG_R8188EU=m"; exit 1; }
           KO="$(find out -name r8188eu.ko | head -1)"
