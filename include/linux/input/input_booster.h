@@ -5,6 +5,7 @@
 #include <linux/pm_qos.h>
 #include <linux/of.h>
 #include <linux/ems_service.h>
+#include <linux/mali_exynos_boost.h>
 
 #ifdef CONFIG_SCHED_HMP
 #define USE_HMP_BOOST
@@ -121,6 +122,7 @@ static struct kpp kpp_fg;
 	set_qos(&_this->mif_qos, PM_QOS_BUS_THROUGHPUT, _this->param[_this->index].mif_freq);  \
 	set_qos(&_this->int_qos, PM_QOS_DEVICE_THROUGHPUT, _this->param[_this->index].int_freq);  \
 	set_qos_dma_latency(&_this->dms_latency_qos, PM_QOS_CPU_DMA_LATENCY, _this->param[_this->index].dma_latency);  \
+	mali_exynos_touch_boost(500); \
 }
 #define REMOVE_BOOSTER  { \
 	int value = INPUT_BOOSTER_NULL; \

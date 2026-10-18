@@ -24,6 +24,9 @@
 /* Uses */
 #include <gpexbe_devicetree.h>
 #include <gpex_clock.h>
+#include <gpex_pm.h>
+#include <linux/export.h>
+#include <linux/mali_exynos_boost.h>
 
 #define BOOST_MAX_DURATION 5000
 #define DELAY_DURATION_MS 100
@@ -42,11 +45,25 @@ int gpexwa_interactive_boost_set(int duration)
 	if (duration > BOOST_MAX_DURATION)
 		return -EINVAL;
 
+	/*
+	 * Only meaningful while the GPU is powered. This also keeps the
+	 * input booster from waking the DVFS machinery on every input
+	 * event while the GPU is idle.
+	 */
+	if (!gpex_pm_get_status(false))
+		return 0;
+
 	ib_info.duration = duration;
 	schedule_work(&ib_info.set_work);
 
 	return 0;
 }
+
+int mali_exynos_touch_boost(int duration)
+{
+	return gpexwa_interactive_boost_set(duration);
+}
+EXPORT_SYMBOL_GPL(mali_exynos_touch_boost);
 
 static void work_interactive_boost_set(struct work_struct *data)
 {
