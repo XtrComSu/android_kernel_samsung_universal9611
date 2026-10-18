@@ -216,18 +216,65 @@ Record build run IDs and findings. They carry `[skip ci]` so they do not trigger
 
 ---
 
-## 8. Current steady state
+## 8. KSUN v3.4.2 rebase + NoMount removal (2026-10-18)
 
-- Last green build: run **37161746408** at commit `ed1241b9a`.
-- CI asserts: `BIC`/`CUBIC`/`DEFAULT_TCP_CONG="bic"`, `NOMOUNT=y`, `KEYS=y`,
-  literal `nomount` in `Image`, all nine implemented SUSFS features `=y`,
-  `SUSFS_ENABLE_LOG` off, `SUS_MEMFD` **off**.
-- Device verified: NoMount boots clean (`[OK] Boot phase completed safely`), one rule
-  only, `nm version` = 20, `ksud susfs` reports v2.3.0 NON-GKI 9/9 features.
+### `a95e833fc` `[src]` — rebase vendored KernelSU-Next onto official v3.4.2 + SUSFS glue
+The vendored `drivers/kernelsu/` was rebased onto the official KernelSU-Next
+tree at `465490a266` (v3.4.2, UAPI 5) plus the SUSFS glue on top: 11 files,
+500 insertions / 0 deletions against the official commit (audited in the port
+repo as `3323ee36`). Glue source: sidex15 `d999a2aff115`
+(`v3.4.0-legacy-susfs-v2`). This supersedes the v3.3.0 downgrade (§2,
+`710c0d8c3`) and its version pin.
+
+Version pins: `KSU_VERSION_OVERRIDE=33355` /
+`KSU_VERSION_TAG_OVERRIDE=v3.4.2-legacy-susfs-v2` in `build_kernel.py` and
+CI, and the post-build check **hard-fails** unless the tag string is found
+in `Image`. Manager pairing:
+`KernelSU_Next_v3.4.2-spoofed_33355-release.apk` (see `XT-Xenos9611.md`
+§MANAGER).
+
+NoMount removed in the same change: `fs/nomount/` (88 KB) deleted, its
+`fs/Makefile` / `fs/Kconfig` lines dropped, `CONFIG_NOMOUNT=y` removed from
+all seven defconfigs, and every NoMount CI assertion (symbol, `CONFIG_KEYS`,
+`nomount` string) deleted. Module mounting is KernelSU-Next's own mechanism
+again. History + bootloop lesson: §6.
+
+Also re-applied: `-Wno-misleading-indentation` in the vendored Kbuild (§2,
+`ef9e54226`).
+
+### `64e6f0900` `[fix]` — `__poll_t` clash with the vendor tree's backport
+`infra/event_queue.h` re-typedefs `__poll_t` below 4.16, but this vendor 4.14
+tree already has it in `include/uapi/linux/types.h` →
+`-Werror,-Wtypedef-redefinition`; the first v3.4.2 build (run `39125207801`)
+failed here. Fix follows the official Kbuild backport-probe pattern: a
+`grep` probe adds `-DKSU_HAS_POLL_T` and the fallback typedef is skipped when
+it is set. **Do not "simplify" this back to a plain version check.**
+
+Kernel-side SUSFS verified byte-identical to sidex15 branch HEAD `929a8eac7`
+(2026-09-13) during this rebase: already the newest non-GKI v2.3.0
+(OPEN_REDIRECT UAF/deadlock fixes, SUS_MOUNT minor-dev gap fix, spoofing
+refactor, NULL-deref fix).
+
+---
+
+## 9. Current steady state
+
+- Last green build: run **39126533696** at commit `64e6f0900` (v3.4.2 rebase).
+- CI asserts: `BIC`/`DEFAULT_TCP_CONG="bic"`, the tag string
+  `v3.4.2-legacy-susfs-v2` in `Image`, all nine implemented SUSFS features
+  `=y`, `SUSFS_ENABLE_LOG` off, `SUS_MEMFD` **off**, plus the
+  external-wifi/gadget and tuning symbol sets (the old NoMount entries are
+  gone).
+- Device-side (pending flash of the v3.4.2 build): expect `ksud susfs` to
+  report v2.3.0 NON-GKI 9/9, the firmware overlay at
+  `/vendor/firmware/rtlwifi/rtl8188eufw.bin` (KSUN mounts it natively now),
+  and NoMount's metamodule to be removed/inert.
 
 ### Open / known risks
-1. **f2fs `nobarrier`** on `/data` can still zero-fill files on an unclean shutdown
-   (`nomount/module.prop` has been lost twice). Reflash the NoMount zip to restore.
+1. **f2fs `nobarrier`** on `/data` can still zero-fill files on an unclean
+   shutdown (module files have been lost this way). Reflash/restore to repair.
 2. **SUSFS hiding requires a real app to validate** — `su <uid>` is not a valid probe.
-3. Any module that ships **whiteout markers for framework paths** will bootloop the
-   device again; `lineage_hide` is currently disabled for exactly this reason.
+3. Any module that ships **whiteout markers for framework paths** can bootloop the
+   device; `lineage_hide` is currently disabled for exactly this reason.
+4. **On-device flash of the v3.4.2 build is still pending** — device-verified
+   statements elsewhere refer to the last flashed build (v3.3.0, `ed1241b9a`).

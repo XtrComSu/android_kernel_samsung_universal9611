@@ -17,9 +17,9 @@ carrying:
 
 | Component | Version / form | Where |
 |---|---|---|
-| KernelSU-Next | `v3.3.0-legacy-susfs-v2`, reports version 33214 | `drivers/kernelsu/` |
-| SUSFS | `v2.3.0`, NON-GKI | `fs/susfs.c`, `include/linux/susfs.h` |
-| NoMount | built **in-tree** (not a `.ko`) | `fs/nomount/` |
+| KernelSU-Next | `v3.4.2-legacy-susfs-v2`, reports version 33355 | `drivers/kernelsu/` |
+| SUSFS | `v2.3.0`, NON-GKI (sidex15 HEAD) | `fs/susfs.c`, `include/linux/susfs.h` |
+| NoMount | **removed** in the v3.4.2 rebase | (was `fs/nomount/`) |
 | WireGuard | in-tree | `drivers/net/wireguard/` |
 | r8188eu | RTL8188EU/EUS USB Wi-Fi, built as `r8188eu.ko` | `drivers/staging/r8188eu/` |
 
@@ -36,9 +36,7 @@ every build. **Do not "clean these up" without understanding why they are there.
 | Invariant | Why |
 |---|---|
 | `CONFIG_DEFAULT_BIC=y` and `CONFIG_DEFAULT_TCP_CONG="bic"` | BBR/cubic was an accidental behavioural change; `bic` is the stock exynos9611 default and was explicitly restored. |
-| `CONFIG_NOMOUNT=y` | NoMount must be **in-tree** on 4.14. Internal VFS symbols are not exported to modules below 5.10, so a `.ko` is impossible. |
-| `CONFIG_KEYS=y` | NoMount registers a key type named `nomount`; that key type **is** the "Internal API" the installer probes. |
-| literal `nomount` string inside the built `Image` | Proves the driver really linked in, not just that Kconfig was set. |
+| `v3.4.2-legacy-susfs-v2` string inside the built `Image` | The kernel must report version `33355` / UAPI 5 to pair with the v3.4.2 manager; CI hard-fails if the tag string is missing. |
 | `CONFIG_KSU_SUSFS_ENABLE_LOG` **is not set** | SUSFS logging writes hidden-path activity into the kernel log — a detection surface. |
 | `CONFIG_KSU_SUSFS_SUS_MEMFD` **is not set** | **Trap:** `Kconfig` offers it and `supercall/supercall.c` calls `susfs_add_sus_memfd()`, but SUSFS v2.3.0 does **not implement** it (`fs/susfs.c` / `susfs.h` have no such symbol or `CMD_SUSFS_ADD_SUS_MEMFD`). Enabling it **breaks the build**. |
 | exactly one occurrence of each option in the defconfig | kconfig honours the **last** occurrence. A duplicate silently negated SUS_MEMFD once already. |
@@ -51,41 +49,34 @@ every build. **Do not "clean these up" without understanding why they are there.
    *below* `CONFIG_X=y` means X is **off**. Always grep for duplicates after editing
    a defconfig.
 
-2. **NoMount bootloops when a module ships character-device whiteout markers.**
-   `metamount.sh` runs `find -L "$partition" \( -type c -o -name .replace \)` and turns
-   those into **whiteouts**. `lineage_hide` shipped `crw-rw---- 0,0` nodes for
-   `/system/framework/org.lineageos.platform-res.apk` and its `.odex`/`.vdex`, so
-   NoMount hid the LineageOS framework resource APK **from the system itself** →
-   system_server could not load → bootloop. See `CHANGELOG.md`.
+2. **A mounter that whiteouts framework paths bootloops the device.** This already
+   happened once with the (now removed) NoMount subsystem: `metamount.sh` converted
+   character-device nodes (`crw-rw---- 0,0`) into **whiteouts**, and `lineage_hide`
+   shipped such nodes for `/system/framework/org.lineageos.platform-res.apk` and its
+   `.odex`/`.vdex` — hiding the framework resource APK **from the system itself** →
+   system_server could not load → bootloop. NoMount is gone; the lesson stands for
+   any mounter. See `CHANGELOG.md` §6.
 
-3. **NoMount master has an unbounded `xargs` arg list.** `metamount.sh` registers
-   whiteouts and replacements in **separate** `xargs` calls, so an `ARG_MAX` failure
-   can leave a path whiteouted with **no replacement**. The `dev` branch adds
-   `xargs -0 -r -n 200`; the on-device script uses the `dev` version.
-
-4. **NoMount's bootloop guard must be `sync`ed.** It works by leaving a `.booting`
-   semaphore on `/data`; without `sync` that write is lost on an unclean shutdown and
-   the guard fails exactly when it is needed (device loops instead of self-disabling).
-
-5. **`/data` is f2fs with `fsync_mode=nobarrier`.** An unclean shutdown can zero-fill
+3. **`/data` is f2fs with `fsync_mode=nobarrier`.** An unclean shutdown can zero-fill
    recently-written files *while keeping their size*. This has already destroyed
-   `nomount/module.prop` (twice), `lineage_hide`'s payload, `tricky_store` caches and
-   several webroot assets. When something behaves impossibly, check for a file that is
-   the right size but entirely NUL bytes:
+   module files (including NoMount's `module.prop`), `lineage_hide`'s payload,
+   `tricky_store` caches and several webroot assets. When something behaves
+   impossibly, check for a file that is the right size but entirely NUL bytes:
    ```sh
    LC_ALL=C tr -d '\000' < FILE | wc -c   # 0 => the file is all NULs
    ```
 
-6. **Run `metamount.sh` with an absolute path.** Invoking it as `./metamount.sh` makes
-   `$0`-relative logic set `MODDIR=.` and the rule loader then resolves relatively
-   after the script `cd`s, producing `xargs: exec ./bin/nm: No such file or directory`
-   and **zero rules**. KSUN always invokes it absolutely; manual testing must too.
-
-7. **SUSFS hiding only applies to umounted app processes.** `fs/susfs.c` gates
+4. **SUSFS hiding only applies to umounted app processes.** `fs/susfs.c` gates
    `susfs_is_inode_sus_path()` on `susfs_is_current_proc_umounted_app()` and on the
    inode's owner differing from the caller's uid. Consequence: you **cannot** validate
    hiding with `su <uid> -c ...` from a root shell and conclude it is broken — that
    process is in the `u:r:ksu:s0` context. Verify with a real app.
+
+5. **This vendor 4.14 tree backports modern kernel types.** `__poll_t` exists in
+   `include/uapi/linux/types.h` even though mainline only gained it in 4.16, so
+   KSU-side version-guarded fallback typedefs can collide
+   (`-Werror,-Wtypedef-redefinition`). Compat must *probe the tree* through the
+   `KSU_HAS_*` Kbuild defines (see §2 / `CHANGELOG.md` §8), not version-check alone.
 
 ---
 
@@ -94,7 +85,7 @@ every build. **Do not "clean these up" without understanding why they are there.
 **SUSFS is kernel-only — it does not use Zygisk, and does not need it.** It works in
 the VFS: `sus_path` hides paths, `sus_map` hides mmapped files, `sus_mount`/`try_umount`
 hide mounts, `sus_kstat` spoofs stat, `open_redirect` redirects opens. All of it is
-gated on `susfs_is_current_proc_umounted_app()` (see §3.7).
+gated on `susfs_is_current_proc_umounted_app()` (see §3.4).
 
 That design draws a hard line:
 
@@ -135,8 +126,8 @@ Before blaming SUSFS, check in this order:
 |---|---|
 | `/data/adb/brene/` | **The live SUSFS userspace config.** `config.sh` + `custom_sus_path.txt`, `custom_sus_path_loop.txt`, `custom_sus_map.txt`, `custom_kernel_umount.txt`. |
 | `/data/adb/susfs4ksu/` | **INERT.** Leftover from the old `susfs4ksu` module, which `brene/customize.sh` disables. Editing it does nothing. A `README.INERT` marks this on-device. |
-| `/data/adb/modules/nomount/` | The NoMount metamodule: `module.prop` (must contain `metamodule=true`), `metamount.sh`, `service.sh`, `bin/nm`. |
-| `/data/adb/metamodule` | Symlink → `/data/adb/modules/nomount`. Its existence is what makes KSUN call `metamount.sh`. |
+| `/data/adb/modules/nomount/` | The NoMount metamodule — **inert** since the kernel subsystem was removed. Remove it (and the symlink below) after flashing the new kernel. |
+| `/data/adb/metamodule` | Symlink → `/data/adb/modules/nomount`. Delete it so KSUN mounts modules natively again. |
 | `/data/adb/modules/r8188eu_firmware/` | Systemless overlay providing `rtlwifi/rtl8188eufw.bin` (the ROM ships **no** Realtek firmware). |
 | `/data/adb/r8188eu/r8188eu.ko` | The Wi-Fi module. **Its CRC is tied to the kernel build** — refresh it after every rebuild. |
 
@@ -168,17 +159,15 @@ Device-side verification after flashing:
 
 ```sh
 su -c '
-  uname -r                                     # kernel actually booted
-  /data/adb/modules/nomount/bin/nm version      # expect 20 (kernel API alive)
-  /data/adb/modules/nomount/bin/nm rule list    # expect ONLY the rtl8188eufw rule
-  cat /data/adb/nomount/nomount.log             # expect "[OK] Boot phase completed safely"
-  ksud susfs support; ksud susfs features       # expect Supported + 9 features
+  uname -r                                         # kernel actually booted
+  ls -l /vendor/firmware/rtlwifi/rtl8188eufw.bin   # KSUN-mounted firmware overlay
+  ksud susfs support; ksud susfs features          # expect Supported + 9 features
 '
 ```
 
-A healthy NoMount state has exactly **one** redirection
-(`/vendor/firmware/rtlwifi/rtl8188eufw.bin`). Anything touching `/system/framework`,
-`/system/etc` or `/system/bin` is a bootloop risk and must be justified.
+Module mounting is done by KernelSU-Next itself since NoMount was removed; the
+firmware file above is the one overlay that must be present for the USB Wi-Fi
+adapter.
 
 ---
 
@@ -186,8 +175,8 @@ A healthy NoMount state has exactly **one** redirection
 
 - Do not enable `SUS_MEMFD` (build breaks; see §2).
 - Do not add `CONFIG_X=y` above an existing `# CONFIG_X is not set` (see §3.1).
-- Do not let NoMount whiteout framework paths (see §3.2).
-- Do not run a second mounter (Hybrid Mount / overlayfs mounter) alongside NoMount —
-  only one metamodule may be active, and NoMount *replaces* KSUN's magic mount.
-- Do not "verify" hiding with `su <uid>`; use a real app (§3.7).
+- Do not hide framework paths from the system (see §3.2).
+- Do not leave the NoMount metamodule enabled after flashing this kernel — remove it
+  and the `/data/adb/metamodule` symlink so KSUN mounts modules natively.
+- Do not "verify" hiding with `su <uid>`; use a real app (§3.4).
 - Do not commit to `xtrcomsu-*` remote branches that may not exist — push to `fork`.

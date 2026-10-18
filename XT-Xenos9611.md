@@ -27,20 +27,20 @@ there are no RKP / DEFEX / PROCA / FIVE / KDP security dirs.
 
 | Field | Value |
 |---|---|
-| Project | KernelSU-Next (`https://github.com/sidex15/KernelSU-Next`) |
-| Tag | `v3.3.0-legacy-susfs-v2` (v3.3.0 line + SUSFS v2 glue, manual hook) |
-| Commit | `36679224f26d03f2bb105c4686cf390eb63178c2` |
-| Reported version | `33214` (= 30000 + 3014 commits + 200; matches the v3.3.0 manager) |
-| UAPI version | `2` (matches the KernelSU-Next v3.3.0 manager) |
+| Project | KernelSU-Next (`https://github.com/KernelSU-Next/KernelSU-Next`) |
+| Tag | `v3.4.2-legacy-susfs-v2` (official v3.4.2 + SUSFS v2 glue, manual hook) |
+| Commit | `465490a266` (official; SUSFS glue from sidex15 `d999a2aff115`) |
+| Reported version | `33355` (matches the v3.4.2 manager) |
+| UAPI version | `5` (matches the KernelSU-Next v3.4.2 manager) |
 | Location | `drivers/kernelsu/` (vendored, not a submodule) |
 | Hook mode | `CONFIG_KSU_MANUAL_HOOK=y` |
 
-History: v3.4.0 was tried first (UAPI 4, version 33225) but its manager
-would not connect; the kernel is now pinned to the v3.3.0 legacy+SUSFS line,
-whose UAPI (2) and version (33214) match the v3.3.0 manager exactly.
-The only difference between the two lines is KSU-side; the SUSFS v2.3.0
-kernel integration is unchanged and remains compatible (only the optional
-`CMD_SUSFS_ADD_SUS_MEMFD` is absent).
+The rebase is additive-only: `git diff 465490a266 3323ee36` is exactly
+11 files / 500 insertions / 0 deletions (the SUSFS glue), plus two local
+build fixes (see CHANGELOG §8). History: the previous pin was the
+v3.3.0-legacy-susfs-v2 line (UAPI 2, version 33214), whose manager was the
+only working one at the time; the v3.4.2 manager (UAPI 5) now pairs with
+this build. The earlier v3.4.0 attempt is obsolete.
 
 ## SUSFS
 
@@ -48,7 +48,7 @@ kernel integration is unchanged and remains compatible (only the optional
 |---|---|
 | Version | `v2.3.0` (NON-GKI) |
 | Source | `sidex15/android_kernel_lge_sm8150`, branch `OpenELA-4.14.y-susfs` |
-|       | `929a8eac7` (a 4.14 tree whose SUSFS API matches `legacy-susfs-v2`) |
+|       | HEAD `929a8eac7` (2026-09-13) — files verified byte-identical 2026-10-18 |
 | Files | `fs/susfs.c`, `include/linux/susfs.h`, `include/linux/susfs_def.h` |
 | Module target | `sidex15/susfs4ksu-module` (v1.5.2-R28, needs SUSFS >= 1.5.2) |
 
@@ -60,8 +60,15 @@ Why this exact pair and not "newest of everything":
   `1.4.2-kernel-4.14`, branch `kernel-4.14`); there is **no** upstream v2.x
   4.14 patch. The v2.x 4.14 implementation exists only in sidex15's SM8150
   tree, which is a real, working 4.14 + KSUN + SUSFS v2.3.0 integration.
+- The non-GKI v2.3.0 tracks sidex15's branch HEAD (2026-09-13), i.e. the
+  current upstream non-GKI version — it includes the OPEN_REDIRECT
+  UAF/deadlock fixes, the SUS_MOUNT minor-dev gap fix, the SUS_MOUNT /
+  SUS_KSTAT / OPEN_REDIRECT spoofing refactor and the NULL-deref fix.
+  Upstream's GKI v2.3.0 (`gki-android*` dev branches) uses a different
+  mechanism (thread_info `TIF_*` flags vs inode `i_state` bits here) and
+  is not a drop-in.
 - `legacy-susfs-v2` requires the **v2.0.0+** SUSFS supercall API
-  (`CMD_SUSFS_ADD_SUS_MEMFD`, `susfs_extra_works`, `susfs_run_sus_path_loop`,
+  (`CMD_SUSFS_ADD_SUS_PATH_LOOP`, `susfs_extra_works`, `susfs_run_sus_path_loop`,
   ...). Those are present in the v2.3.0 tree.
 - API cross-check: 27 required `susfs_*` symbols and 17 required
   `CMD_SUSFS_*` ids were compared. Everything resolves except
@@ -97,7 +104,9 @@ SUSFS hooks (`CONFIG_KSU_SUSFS*`): `fs/namei.c`, `fs/namespace.c`,
 `fs/namespace.c` (`can_umount`, `path_umount`), `fs/internal.h`,
 `include/linux/seccomp.h` (`filter_count`), and SELinux
 `selinux_inode`/`selinux_cred` helpers in
-`security/selinux/{hooks,selinuxfs,objsec.h,xfrm}.c`.
+`security/selinux/{hooks,selinuxfs,objsec.h,xfrm}.c`. It also probes the
+tree for backports (`KSU_HAS_*` / `KSU_OPTIONAL_*` defines, e.g.
+`KSU_HAS_POLL_T` for this vendor tree's backported `__poll_t`).
 
 ## PATCHES
 
@@ -271,78 +280,27 @@ makes ksud's overlay mounts invisible to non-su processes. Set
 Also keep only one mounter active — KernelSU-Next's built-in magic mount and
 the "Hybrid Mount" module should not both mount the same modules.
 
-## NOMOUNT (BUILT-IN VFS PATH REDIRECTION)
+## NOMOUNT (REMOVED)
 
-`fs/nomount/` carries maxsteeel/nomount **v20**, integrated built-in. This is the
-out-of-tree VFS path-redirection subsystem used by the NoMount metamodule for
-KernelSU-Next / APatch.
+The in-tree NoMount VFS path-redirection subsystem (maxsteeel/nomount v20,
+`fs/nomount/`) was **removed** in the v3.4.2 rebase: `fs/nomount/` deleted
+(88 KB), its `fs/Makefile` / `fs/Kconfig` lines dropped, and
+`CONFIG_NOMOUNT=y` removed from all seven defconfigs. CI no longer asserts
+the symbol or the `nomount` key-type string. KernelSU-Next's own mount
+handling mounts modules again (see MODULE MOUNTING).
 
-Why built-in rather than the shipped LKM: the metamodule's release ZIP carries
-prebuilt `nomount-android*.ko` only for GKI 5.10 / 5.15 / 6.1 / 6.6 / 6.12. On a
-legacy kernel those will not load, because the internal VFS symbols the driver
-relies on are not exported to modules — upstream's own README states that
-legacy (<5.10) kernels must integrate it in-tree. Hence `CONFIG_NOMOUNT=y`.
+The history is kept because it produced this device's worst bootloop, and
+the lesson applies to any mounter: a module shipping **character-device
+nodes** (`crw-rw---- 0,0`) was converted to **whiteouts**, so
+`lineage_hide` hid `/system/framework/org.lineageos.platform-res.apk` and
+its odex/vdex **from the system itself** - the framework could not load -
+bootloop. Proven by clearing the rules and watching the three files
+reappear (301322 / 822912 / 7064 bytes). Full diagnosis: CHANGELOG §6.
 
-How presence is detected (the "Internal API" the installer probes for): the
-subsystem registers a **key type named `nomount`** from `fs_initcall`, so the
-metamodule's kernel-support check succeeds once this kernel is flashed. That
-requires `CONFIG_KEYS=y`, which is already set in every defconfig.
-
-4.14 compatibility: the compat layer in `nomount.h` / `nomount.c` already covers
-this generation — the pre-4.11 `getattr` signature, the empty `IDMAP_*` branch
-(below 5.12), the `NM_ACTOR_RET` / `FLAGS_ARG` shims and a `DCACHE_DONTCACHE`
-stub. The `MODULE_IMPORT_NS` block at the end of `nomount.c` is wrapped in
-`LINUX_VERSION_CODE >= 5.0`, so it is not compiled on 4.14.
-
-Files: `fs/nomount/{nomount.c,nomount.h,Kconfig,Makefile}` (vendored, *not*
-symlinked to an out-of-tree clone as `setup.sh` does, so the CI build stays
-reproducible), one line in `fs/Kconfig`, one in `fs/Makefile`, and
-`CONFIG_NOMOUNT=y` in all seven exynos9611 defconfigs. CI asserts both the
-config symbol and the `nomount` key-type string inside the built Image.
-
-**Troubleshooting — "installed but nothing mounts".** KSUN only treats NoMount
-as the mounter while its `module.prop` contains `metamodule=true`. Without that
-flag the module still shows up in `ksud module list`, `nm version` still
-answers `20`, and `nm rule list` is simply **empty** — `metamount.sh` is never
-invoked, so no module file appears under its target path (`/vendor/firmware/…`,
-`/system/…`). Diagnosed on this device when an unclean shutdown zero-filled
-`module.prop`: the file was exactly the template's 175 bytes, all NUL. Restoring
-the flag and re-running `sh /data/adb/modules/nomount/metamount.sh` (absolute
-path — a relative `$0` makes `MODDIR` `.` and the loader path `./bin/nm` breaks
-once the script `cd`s into a module dir) restores redirection immediately, and
-the normal boot path picks it up again after a reboot.
-
-Relevant detail: `/data` is f2fs mounted `fsync_mode=nobarrier`, so an unclean
-shutdown can zero-fill recently written files. In this incident it also hit
-five `tricky_store/autopif4/*.html` caches plus several logs and 1-byte state
-files. `module.prop` is the one that matters — losing `metamodule=true` silently
-disables the whole metamodule. `nm` rules live only in RAM, so they are always
-re-registered at boot by `metamount.sh`; only the flag is persistent.
-
-**Bootloop root cause (confirmed on this device).** A module that hides files by
-shipping **character-device nodes** (major 0, minor 0) makes `metamount.sh`
-register a *whiteout* for that path — its `find -L "$partition" \( -type c ... \)`
-branch. `lineage_hide` carried such nodes for
-`/system/framework/org.lineageos.platform-res.apk`,
-`.../oat/arm64/org.lineageos.platform.odex` and `.../org.lineageos.platform.vdex`,
-so NoMount hid the LineageOS framework resource APK and its odex/vdex **from the
-system itself**. The framework then cannot load and boot fails. Proven by
-clearing the rules and watching all three files reappear
-(301322 / 822912 / 7064 bytes).
-
-The fix is to disable such a module rather than let NoMount whiteout framework
-paths, and to hide the same traces the *safe* way with SUSFS `sus_path`, which
-only affects app processes (see the STEALTH section). With `lineage_hide`
-disabled, NoMount's entire rule set is one benign file —
-`/vendor/firmware/rtlwifi/rtl8188eufw.bin`.
-
-Two more robustness fixes were applied to the on-device `metamount.sh`:
-pulling `dev`'s `xargs -0 -r -n 200` (master passes an unbounded arg list, and
-because whiteouts and replacements go through *separate* xargs calls an ARG_MAX
-failure can leave a path whiteouted with no replacement), and adding `sync`
-after both the create and the remove of the `.booting` semaphore — without it
-the bootloop guard itself is lost on an unclean shutdown and the device loops
-instead of self-disabling.
+On-device follow-up after flashing the new kernel: the NoMount metamodule
+(`/data/adb/modules/nomount` plus the `/data/adb/metamodule` symlink) is
+now inert - remove it so KSUN handles mounting for every module, then
+confirm the firmware overlay is visible (`ls /vendor/firmware/rtlwifi/`).
 
 ## STEALTH (SUSFS) NOTES
 
@@ -361,16 +319,17 @@ Therefore "LineageOS traces" that are **system properties**
 SUSFS concern — those are userspace. They must be changed with resetprop /
 PlayIntegrityFix / a hiding module, not the kernel.
 
-**Kernel-side stealth additions (this build).** `CONFIG_KSU_SUSFS_SUS_MEMFD` was
-the one SUSFS feature left unset; it is now enabled, so a userspace-defined
-memfd name — the artifact Zygisk-style injectors leave behind — can be
-suppressed. That is the kernel half of hiding injected *memory* from detectors.
-`CONFIG_KSU_SUSFS_SUS_MAP` (already on) hides mmapped real files from
-`/proc/<pid>/{maps,smaps,smaps_rollup,map_files,mem,pagemap}`. Conversely
-`CONFIG_KSU_SUSFS_ENABLE_LOG` is now **off**: SUSFS logging writes its own
-activity into the kernel log, which is itself a detection surface. CI asserts all nine
-*implemented* SUSFS features are `=y`, that logging stays disabled, and that SUS_MEMFD
-stays **off** — it is a phantom option in this tree (see CHANGELOG.md §3).
+**Kernel-side stealth additions (this build).** `CONFIG_KSU_SUSFS_SUS_MAP`
+(already on) hides mmapped real files from
+`/proc/<pid>/{maps,smaps,smaps_rollup,map_files,mem,pagemap}`.
+`CONFIG_KSU_SUSFS_SUS_MEMFD` is **not implementable** in SUSFS v2.3.0 —
+only the KSU-side Kconfig/supercall reference the symbol, the kernel side
+has none, and enabling it breaks the build (see CHANGELOG.md §3). Memory
+hiding is delivered by `SUS_MAP` instead. `CONFIG_KSU_SUSFS_ENABLE_LOG` is
+**off**: SUSFS logging writes its own activity into the kernel log, which
+is itself a detection surface. CI asserts all nine *implemented* SUSFS
+features are `=y`, that logging stays disabled, and that SUS_MEMFD stays
+**off**.
 
 **Userspace side (on-device, not the kernel).** SUSFS is driven by the **`brene`**
 module, which reads **`/data/adb/brene/`** — *not* `/data/adb/susfs4ksu/`. That second
@@ -455,30 +414,27 @@ Verdict:
 
 ## MANAGER
 
-Use the **KernelSU-Next (KSUN) manager v3.3.0** —
-`KernelSU_Next_v3.3.0-spoofed_33214-release.apk`. Not the original KernelSU
+Use the **KernelSU-Next (KSUN) manager v3.4.2** —
+`KernelSU_Next_v3.4.2-spoofed_33355-release.apk`. Not the original KernelSU
 manager and not APatch.
 
-The kernel is pinned to tag `v3.3.0-legacy-susfs-v2`, so it reports version
-`33214` and `KERNEL_SU_UAPI_VERSION = 2`, matching that manager exactly.
+The kernel is pinned to tag `v3.4.2-legacy-susfs-v2`, so it reports version
+`33355` and `KERNEL_SU_UAPI_VERSION = 5`, matching that manager exactly.
 
 Because `drivers/kernelsu` is vendored without `.git`, the build pins
-`KSU_VERSION_OVERRIDE=33214` / `KSU_VERSION_TAG_OVERRIDE=v3.3.0-legacy-susfs-v2`
-(the vendored Kbuild was extended to accept those variables). Verified: the tag
-string is embedded in `Image`.
+`KSU_VERSION_OVERRIDE=33355` / `KSU_VERSION_TAG_OVERRIDE=v3.4.2-legacy-susfs-v2`
+(the vendored Kbuild accepts those variables). Verified: the tag string is
+embedded in `Image` (CI hard-fails if the assertion finds nothing).
 
 Manager compatibility, verified from the APK bytes and the manager sources:
 
 - The manager cert must be 998 bytes, sha256
-  `79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7`. BOTH the
-  v3.3.0-spoofed and v3.4.0 APKs carry exactly that cert, so the signature is
-  not the discriminator.
-- The discriminator is `kernelUAPIVersion == managerUAPIVersion`: the v3.3.0
-  manager is UAPI **2**, the v3.4.0 manager is UAPI **4**.
-- Therefore the kernel is pinned to the v3.3.0 line (UAPI 2) to match the
-  working manager. The earlier v3.4.0 attempt used UAPI 4 and a version of
-  `33225`; v3.4.0 managers are not used here.
-- Both manager generations also require `version >= 33188`; `33214` passes.
+  `79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7`
+  (identical across the spoofed v3.3.0 and v3.4.x APKs).
+- The discriminator is `kernelUAPIVersion == managerUAPIVersion`: the v3.4.2
+  manager is UAPI **5**; the previous v3.3.0 pin was UAPI 2 (see CHANGELOG
+  §2/§8). The obsolete v3.4.0 attempt was UAPI 4 / version 33225.
+- Both manager generations also require `version >= 33188`; `33355` passes.
 
 ## CAPABILITIES
 
@@ -498,7 +454,11 @@ SUSFS features compiled in (what `CMD_SUSFS_SHOW_ENABLED_FEATURES` reports):
 
 - `CONFIG_KSU_SUSFS_SUS_PATH`, `SUS_MOUNT`, `SUS_KSTAT`, `SUS_MAP`,
   `TRY_UMOUNT`, `SPOOF_UNAME`, `SPOOF_CMDLINE_OR_BOOTCONFIG`, `OPEN_REDIRECT`,
-  `ENABLE_LOG`, `HIDE_KSU_SUSFS_SYMBOLS`.
+  `HIDE_KSU_SUSFS_SYMBOLS` — nine features, matching brene's 9/9.
+- `CONFIG_KSU_SUSFS_ENABLE_LOG` is deliberately **off** (kernel-log
+  detection surface). `CONFIG_KSU_SUSFS_SUS_MEMFD` is **not implementable**
+  in SUSFS v2.3.0 — the kernel side has no symbol; enabling it breaks the
+  build.
 
 Mounting ("magic mount" / overlayfs):
 
@@ -520,19 +480,21 @@ Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
 LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
-- Status: **success**
-- Run: `37119919894` (commit `c1f61cef`), branch `ksun-susfs`
+- Status: **success** (v3.4.2 rebase)
+- Run: `39126533696` (commit `64e6f0900`), branch `ksun-susfs`; the first
+  v3.4.2 attempt (`39125207801`) failed on the `__poll_t` clash fixed by
+  `64e6f0900` (CHANGELOG §8).
 - Result: `Image` 37 MB, packaged as `XT-Line-KSUN_m31_<date>.zip` (~17 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
-  `CONFIG_KSU_SUSFS=y`, `CONFIG_KSU_SUSFS_SUS_MOUNT=y`, plus every
-  external-wifi/gadget symbol (the workflow now fails the build if any is
-  missing).
+  `CONFIG_KSU_SUSFS=y`, all nine implemented SUSFS features `=y`, plus every
+  external-wifi/gadget symbol (the workflow fails the build if any is missing).
 - Embedded markers verified in `Image`: `apply_kernelsu`,
-  `susfs_sus_kstat_spoof_proc_fd_seq_show`, `linux version 4.14.357-XT-Line-AOSP`
+  `susfs_sus_kstat_spoof_proc_fd_seq_show`, `linux version 4.14.357-XT-Line-AOSP`,
+  `v3.4.2-legacy-susfs-v2`.
 
-CI run summary: baseline -> KSUN -> SUSFS -> config -> build all compiled with
-zero rejected hunks; the only iterations were the toolchain symlink fix and
-two integration fixes (vendored `uapi/`, `task_mmu.c` externs).
+CI run summary: the v3.4.2 rebase compiled after one integration fix
+(`__poll_t` tree-probe); the earlier v3.3.0 line built with zero rejected
+hunks.
 
 ## PACKAGE
 
@@ -549,7 +511,8 @@ the zip is flashed.
 **Build-time (done):**
 - Defconfig resolves all KSU/SUSFS symbols.
 - Kernel compiles cleanly with KSUN + SUSFS v2.3.0 (all objects built).
-- `Image` contains `apply_kernelsu` and `susfs_sus_kstat_spoof_proc_fd_seq_show`.
+- `Image` contains `apply_kernelsu`, `susfs_sus_kstat_spoof_proc_fd_seq_show`
+  and the `v3.4.2-legacy-susfs-v2` tag string.
 
 **On-device (pending flash):** KernelSU/KSUN manager reports version and root
 works; `ksud`/module (sidex15/susfs4ksu-module >= v1.5.2) initializes SUSFS;
@@ -577,5 +540,6 @@ git checkout ksun-susfs      # this integration branch
 python3 build_kernel.py --target m31
 ```
 
-Pinned revisions: baseline `1500b70ea`, KSUN `d999a2af` (legacy-susfs-v2),
-SUSFS v2.3.0 @ `929a8eac` (OpenELA-4.14.y-susfs).
+Pinned revisions: baseline `1500b70ea`; KernelSU-Next official `465490a266`
+plus SUSFS glue from sidex15 `d999a2aff115` (merged in the port repo as
+`3323ee36`); SUSFS v2.3.0 @ `929a8eac7` (OpenELA-4.14.y-susfs HEAD).
