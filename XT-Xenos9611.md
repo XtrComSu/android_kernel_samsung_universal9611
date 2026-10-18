@@ -157,6 +157,31 @@ Applied (v0.1.0 gaming/AI pass — conservative, no guardrail violations):
   frequency. Effect depends on the vendor GPU framework invoking the boost API;
   revert by setting it back to `n`.
 
+Gaming pass (`4ab0eb8f2`, v0.2.0):
+
+- **GPU DVFS hysteresis fix** (`exynos9610.dts`): 1053 MHz dropped below 95%
+  utilization with stay=1 while 949 MHz only climbed above 90%, so sustained
+  loads in the 90-95% band bounced between the top two OPPs every ~12 ms poll.
+  1053 MHz: down 95→75, stay 1→3; 949/839/764 MHz: up 90→80; interactive
+  highspeed jump 764→839 MHz. Chosen so `up(949)=80 > down(1053)=75` — stable
+  at 1053 MHz across the 75-80% band. Do not restore 95/90 without re-checking.
+- **Input booster** (`exynos9610-inputbooster.dtsi`; the vendor booster in
+  `drivers/input/input.c` was already active on every input event):
+  TOUCH/MULTITOUCH head 1.14→1.456 GHz BIG min, LITTLE min 0.806→0.936 GHz,
+  MIF 1.014→1.352 GHz; TOUCH tail 936→1.053 GHz (windows unchanged:
+  130 ms head / 500 ms tail).
+- **GPU touch boost** (new): `gpexwa_interactive_boost_set()` was only
+  reachable from the vendor UMD ioctl `MALI_EXYNOS_IOCTL_INTERACTIVE_BOOST`,
+  which AOSP/LineageOS never sends, so `CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST=y`
+  was inert. The input booster now calls exported `mali_exynos_touch_boost()`
+  (new `include/linux/mali_exynos_boost.h`, gated on GPU power) — locks the
+  GPU at the highspeed clock for 500 ms per input event while the GPU is
+  active.
+
+On-device check while gaming (root):
+`cat /sys/kernel/gpu/gpu_clock /sys/kernel/gpu/gpu_busy /sys/kernel/gpu/gpu_tmu`
+plus `gpu_freq_table` / `gpu_governor` in the same directory.
+
 ### DVFS / voltage — why there is no undervolt
 
 Verified against this tree: the CPU/GPU/bus **frequency and voltage tables are
@@ -480,11 +505,12 @@ Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
 LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
-- Status: **success** (upstream catch-up merge)
-- Run: `39133066014` (merge `518fd077b`, catch-up with upstream
-  `lineage-24.0`); previous: `39126533696` (`64e6f0900`, v3.4.2 rebase);
-  the first v3.4.2 attempt (`39125207801`) failed on the `__poll_t` clash
-  fixed by `64e6f0900` (CHANGELOG §8).
+- Status: **success** (gaming pass)
+- Run: `39137640082` (`4ab0eb8f2`, gaming pass — GPU DVFS hysteresis +
+  touch boost); previous: `39133066014` (merge `518fd077b`, upstream
+  catch-up), `39126533696` (`64e6f0900`, v3.4.2 rebase); the first v3.4.2
+  attempt (`39125207801`) failed on the `__poll_t` clash fixed by
+  `64e6f0900` (CHANGELOG §8).
 - Result: `Image` 37 MB, packaged as `XT-Line-KSUN_m31_<date>.zip` (~17 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
   `CONFIG_KSU_SUSFS=y`, all nine implemented SUSFS features `=y`, plus every
@@ -494,13 +520,14 @@ LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
   in `exynos9611-m21/m31_defconfig`.
 - Embedded markers verified in `Image`: `apply_kernelsu`,
   `susfs_sus_kstat_spoof_proc_fd_seq_show`, `linux version 4.14.357-XT-Line-AOSP`,
-  `v3.4.2-legacy-susfs-v2`.
+  `v3.4.2-legacy-susfs-v2`, `mali_exynos_touch_boost`.
 
 CI run summary: the upstream `lineage-24.0` catch-up merged with no
 conflicts (upstream had rebased — content parity confirmed by probes, the
 only real delta was the NFC enable) and built green in one shot; the
-v3.4.2 rebase compiled after one integration fix (`__poll_t` tree-probe);
-the earlier v3.3.0 line built with zero rejected hunks.
+gaming pass (`4ab0eb8f2`) also built green in one shot; the v3.4.2 rebase
+compiled after one integration fix (`__poll_t` tree-probe); the earlier
+v3.3.0 line built with zero rejected hunks.
 
 ## PACKAGE
 

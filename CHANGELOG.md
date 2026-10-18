@@ -259,9 +259,9 @@ refactor, NULL-deref fix).
 
 ## 9. Current steady state
 
-- Last green build: run **39133066014** at merge `518fd077b` (upstream
-  `lineage-24.0` catch-up, §10); previous: run `39126533696` at `64e6f0900`
-  (v3.4.2 rebase).
+- Last green build: run **39137640082** at `4ab0eb8f2` (gaming pass, §11);
+  previous: run `39133066014` at merge `518fd077b` (upstream catch-up, §10),
+  and run `39126533696` at `64e6f0900` (v3.4.2 rebase).
 - CI asserts: `BIC`/`DEFAULT_TCP_CONG="bic"`, the tag string
   `v3.4.2-legacy-susfs-v2` in `Image`, all nine implemented SUSFS features
   `=y`, `SUSFS_ENABLE_LOG` off, `SUS_MEMFD` **off**, plus the
@@ -308,3 +308,44 @@ re-verified: `v3.4.2-legacy-susfs-v2` tag present, `nomount` count 0.
 **Lesson:** upstream rewrites its branch history, so "N commits behind" is
 not a content signal. Probe actual content before assuming a catch-up is a
 big job.
+
+---
+
+## 11. Gaming performance pass (2026-10-18)
+
+### `4ab0eb8f2` `[cfg]` — GPU DVFS hysteresis fix + touch boosts
+Sustained-load analysis of the vendor GPU DVFS found the top OPP pair
+unstable: 1053 MHz dropped below 95% utilization with a stay-count of 1,
+while 949 MHz only climbed above 90%. Sustained GPU loads in the 90-95%
+band therefore bounced between the top two OPPs every poll (the 10 ms
+timer is 3 jiffies at HZ=250, so ~12 ms), sawtoothing frame times exactly
+in the range heavy games sit in.
+
+DTS changes (`exynos9610.dts`):
+- 1053 MHz: down threshold 95→75, stay 1→3 (~36 ms below 75% before
+  dropping).
+- 949/839/764 MHz: up threshold 90→80; stays 1→2 at 949/839.
+- interactive `highspeed` jump 764→839 MHz at 70% util (this doubles as
+  the lock clock for the interactive-boost workaround).
+The pairs are chosen so `up(949)=80 > down(1053)=75`: a 75-80% band is
+stable at 1053 MHz instead of oscillating. Do not restore 95/90 without
+re-checking this.
+
+Input booster (`exynos9610-inputbooster.dtsi`; the vendor booster in
+`drivers/input/input.c` was already active):
+- TOUCH/MULTITOUCH head: BIG min 1.14→1.456 GHz, LITTLE min
+  0.806→0.936 GHz, MIF 1.014→1.352 GHz; TOUCH tail 936→1.053 GHz
+  (head 130 ms / tail 500 ms unchanged).
+
+GPU touch boost (new code):
+- `gpexwa_interactive_boost_set()` was only reachable from the vendor UMD
+  ioctl `MALI_EXYNOS_IOCTL_INTERACTIVE_BOOST`, which LineageOS never
+  sends, so `CONFIG_MALI_EXYNOS_INTERACTIVE_BOOST=y` was inert.
+- The input booster now calls an exported `mali_exynos_touch_boost()`
+  (new `include/linux/mali_exynos_boost.h`), gated on GPU power via
+  `gpex_pm_get_status(false)`, which locks the GPU at the highspeed clock
+  for 500 ms per input event while the GPU is active.
+
+Build: run `39137640082` (push, head `4ab0eb8f2`) — green; artifact
+re-verified (tag present, `nomount`=0, `mali_exynos_touch_boost` in
+`Image`).
