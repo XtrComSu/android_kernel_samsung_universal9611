@@ -29,6 +29,12 @@ on:
     branches:
       - ksun-susfs
 
+# Queue pushes instead of running builds in parallel; a build triggered while
+# another is running starts automatically when the current one finishes.
+concurrency:
+  group: xenos9611-kernel-build
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-22.04
