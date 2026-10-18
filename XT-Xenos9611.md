@@ -182,6 +182,21 @@ On-device check while gaming (root):
 `cat /sys/kernel/gpu/gpu_clock /sys/kernel/gpu/gpu_busy /sys/kernel/gpu/gpu_tmu`
 plus `gpu_freq_table` / `gpu_governor` in the same directory.
 
+CPU pass (`e77b66d8a`, v0.2.0):
+
+- Removed hot-path debug accounting: `CONFIG_DEBUG_PREEMPT`,
+  `CONFIG_DEBUG_LIST`, `CONFIG_DEBUG_SNAPSHOT_LOGGING_SMC` (the latter
+  wrapped every `exynos_smc()` with clock reads + latency math).
+  CI asserts they stay off.
+- `CONFIG_TASK_DELAY_ACCT` must stay on: it selects `SCHED_INFO`, whose
+  struct members are hard-required by `sec_debug.c`. Disabling it without
+  patching that file fails the build (run `39139505797`).
+- Audited and left alone (verified, no defect): schedutil shared-policy
+  aggregation and `sugov_cpu_is_busy()` anti-drop, 5 ms rate limits,
+  WALT 20 ms tick-aligned window with `prev_runnable_sum` as the freq util
+  source, 936 MHz BIG floor, UFC (sysfs-only/inert), LBT 80% / ontime
+  68/17. See CHANGELOG §12.
+
 ### DVFS / voltage — why there is no undervolt
 
 Verified against this tree: the CPU/GPU/bus **frequency and voltage tables are
@@ -505,12 +520,13 @@ Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
 LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
-- Status: **success** (gaming pass)
-- Run: `39137640082` (`4ab0eb8f2`, gaming pass — GPU DVFS hysteresis +
-  touch boost); previous: `39133066014` (merge `518fd077b`, upstream
-  catch-up), `39126533696` (`64e6f0900`, v3.4.2 rebase); the first v3.4.2
-  attempt (`39125207801`) failed on the `__poll_t` clash fixed by
-  `64e6f0900` (CHANGELOG §8).
+- Status: **success** (CPU pass)
+- Run: `39140557770` (`e77b66d8a`, CPU pass); previous: `39137640082`
+  (`4ab0eb8f2`, gaming pass), `39133066014` (upstream catch-up merge
+  `518fd077b`), `39126533696` (`64e6f0900`, v3.4.2 rebase); the first
+  v3.4.2 attempt (`39125207801`) failed on the `__poll_t` clash
+  (CHANGELOG §8), and the first CPU-pass attempt (`39139505797`) failed
+  on `TASK_DELAY_ACCT` → `SCHED_INFO` → `sec_debug.c` (CHANGELOG §12).
 - Result: `Image` 37 MB, packaged as `XT-Line-KSUN_m31_<date>.zip` (~17 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
   `CONFIG_KSU_SUSFS=y`, all nine implemented SUSFS features `=y`, plus every
@@ -525,9 +541,11 @@ LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 CI run summary: the upstream `lineage-24.0` catch-up merged with no
 conflicts (upstream had rebased — content parity confirmed by probes, the
 only real delta was the NFC enable) and built green in one shot; the
-gaming pass (`4ab0eb8f2`) also built green in one shot; the v3.4.2 rebase
-compiled after one integration fix (`__poll_t` tree-probe); the earlier
-v3.3.0 line built with zero rejected hunks.
+gaming pass (`4ab0eb8f2`) also built green in one shot; the CPU pass
+needed one fix (`TASK_DELAY_ACCT`/`sec_debug`, `e77b66d8a`) and then
+built green; the v3.4.2 rebase compiled after one integration fix
+(`__poll_t` tree-probe); the earlier v3.3.0 line built with zero rejected
+hunks.
 
 ## PACKAGE
 

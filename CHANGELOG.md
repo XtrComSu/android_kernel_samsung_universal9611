@@ -259,9 +259,10 @@ refactor, NULL-deref fix).
 
 ## 9. Current steady state
 
-- Last green build: run **39137640082** at `4ab0eb8f2` (gaming pass, §11);
-  previous: run `39133066014` at merge `518fd077b` (upstream catch-up, §10),
-  and run `39126533696` at `64e6f0900` (v3.4.2 rebase).
+- Last green build: run **39140557770** at `e77b66d8a` (CPU pass, §12);
+  previous: run `39137640082` at `4ab0eb8f2` (gaming pass, §11), run
+  `39133066014` at merge `518fd077b` (upstream catch-up, §10), and run
+  `39126533696` at `64e6f0900` (v3.4.2 rebase).
 - CI asserts: `BIC`/`DEFAULT_TCP_CONG="bic"`, the tag string
   `v3.4.2-legacy-susfs-v2` in `Image`, all nine implemented SUSFS features
   `=y`, `SUSFS_ENABLE_LOG` off, `SUS_MEMFD` **off**, plus the
@@ -349,3 +350,46 @@ GPU touch boost (new code):
 Build: run `39137640082` (push, head `4ab0eb8f2`) — green; artifact
 re-verified (tag present, `nomount`=0, `mali_exynos_touch_boost` in
 `Image`).
+
+---
+
+## 12. CPU performance pass (2026-10-18)
+
+### `aab2df28a` + `e77b66d8a` `[cfg]` — hot-path debug accounting removed
+Audit of the CPU side (schedutil, WALT, EMS, ACME, UFC, idle) found no
+oscillation-class defect, unlike the GPU table. Three debug features were
+still charging the hot path and are now off:
+
+- `CONFIG_DEBUG_PREEMPT` — turns `smp_processor_id()` into a checked call
+  and enables preempt-count debug checks in scheduling/IPI/net paths.
+- `CONFIG_DEBUG_LIST` — validates list_add/list_del on every list
+  operation kernel-wide.
+- `CONFIG_DEBUG_SNAPSHOT_LOGGING_SMC` — wrapped every `exynos_smc()` call
+  (cal-if power sequences) with two `cpu_clock()` reads, latency math and
+  a spinlock above the threshold. Only the Samsung eng log is lost.
+
+CI now asserts all three stay off.
+
+**Do not disable `CONFIG_TASK_DELAY_ACCT` without patching
+`drivers/samsung/debug/sec_debug.c` first.** It was briefly turned off,
+but `TASK_DELAY_ACCT` **selects `SCHED_INFO`**, which owns
+`struct sched_info`'s four members; `sec_debug.c` registers those member
+offsets unconditionally and the build failed with 8 errors (run
+`39139505797`). `e77b66d8a` restored it. Consequence: with `SCHEDSTATS`
+off, `delayacct_on` stays 1 and `sched_info_on()` returns 1, so the
+per-enqueue/dequeue/context-switch accounting remains — a known,
+documented cost, not an accident.
+
+Verified and deliberately unchanged (no defect found):
+`freqvar` upscale ratios (LITTLE 60/80 split at 910 MHz, BIG 80 =
+mainline 1.25x), 5 ms up/down rate limits (= ACME `TRANSITION_LATENCY`),
+schedutil shared-policy aggregation and `sugov_cpu_is_busy()` anti-drop,
+WALT 20 ms tick-aligned window with `prev_runnable_sum` as the freq util
+source, 936 MHz BIG floor (`min-freq` is a deliberate floor, not a cap),
+UFC being sysfs-only/inert, LBT 80% and ontime 68/17 boundaries.
+Note: the input booster's `kpp_request()` calls have **no consumer** in
+this scheduler (`kpp_status()` is only exposed via sysfs); placement
+boosts are driven by uclamp, not KPP.
+
+Build: run `39140557770` (push, head `e77b66d8a`) — green; artifact
+re-verified (tag, `nomount`=0, touch-boost symbol, zip hash).
