@@ -141,6 +141,11 @@ def main():
     copy_file(f'{output_dir}/arch/arm64/boot/Image', f'{anykernel3_dir}/Image')
     copy_file(f'{output_dir}/arch/arm64/boot/dtbo-{args.target}.img', f'{anykernel3_dir}/dtbo.img')
     copy_file(f'{output_dir}/arch/arm64/boot/exynos9611.dtb', f'{anykernel3_dir}/dtb')
+    guard_src = f'{parent_dir}/extras/xtbootguard'
+    guard_dst = f'{anykernel3_dir}/xtbootguard'
+    if os.path.isdir(guard_src):
+        shutil.rmtree(guard_dst, ignore_errors=True)
+        shutil.copytree(guard_src, guard_dst)
     zip_filename = 'XT-Line-KSUN_{}_{}.zip'.format(
         args.target, datetime.today().strftime('%Y-%m-%d'))
 
@@ -155,6 +160,10 @@ def main():
         'tools/busybox',
         'tools/magiskboot',
         'anykernel.sh',
+        'xtbootguard/module.prop',
+        'xtbootguard/post-fs-data.sh',
+        'xtbootguard/service.sh',
+        'xtbootguard/action.sh',
         'version'
     ])
     final_zip_path = f'{parent_dir}/{zip_filename}'
@@ -163,6 +172,7 @@ def main():
         os.remove(f'{anykernel3_dir}/dtbo.img')
         os.remove(f'{anykernel3_dir}/dtb')
         os.remove(final_zip_path)
+        shutil.rmtree(guard_dst, ignore_errors=True)
     except FileNotFoundError:
         pass
     shutil.move(zip_filename, final_zip_path)

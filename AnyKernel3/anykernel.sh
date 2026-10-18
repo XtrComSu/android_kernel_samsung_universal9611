@@ -84,6 +84,34 @@ boot_backup() {
 }
 xt_step "Saving a boot image backup";
 boot_backup;
+
+# XT-Line boot guard: ship the progressive bootloop guard with the kernel.
+xt_install_guard() {
+  local src="$PWD/xtbootguard"
+  [ -d "$src" ] || src="$(dirname "$0")/xtbootguard"
+  if [ ! -d "$src" ]; then
+    ui_print "  [! ] Boot guard payload missing (skipping)";
+    return 0;
+  fi
+  [ -d /data/adb ] || mount /data 2>/dev/null || true;
+  if [ -d /data/adb ]; then
+    local dst=/data/adb/modules/xtbootguard
+    mkdir -p "$dst" /data/adb/xtbootguard
+    if cp -af "$src"/. "$dst"/ 2>/dev/null; then
+      chmod 755 "$dst"/*.sh 2>/dev/null
+      ui_print "  [OK] Boot guard auto-installed";
+    else
+      ui_print "  [! ] Boot guard copy failed";
+    fi
+  else
+    mkdir -p /sdcard/Download/xtbootguard
+    cp -af "$src"/. /sdcard/Download/xtbootguard/ 2>/dev/null
+    ui_print "  [! ] /data not mounted - guard copied to /sdcard/Download/xtbootguard"
+  fi
+}
+xt_step "Installing boot guard";
+xt_install_guard;
+
 xt_step "Patching kernel and ramdisk";
 write_boot;
 ui_print "  [OK] Kernel installed";
@@ -92,6 +120,7 @@ ui_print "  ==================================================";
 ui_print "     INSTALL COMPLETE  -  REBOOT TO BOOT XT-LINE";
 ui_print "     Hold VOL DOWN at boot for KernelSU safe mode";
 ui_print "     Boot backup saved in /sdcard/Download";
+ui_print "     Guard: 3 fails = modules off, 6 = recovery, 9 = boot restore";
 ui_print "  ==================================================";
 ui_print "    01011000 01010100 00101101 01001100 01001001 01001110 01000101";
 ui_print " ";
