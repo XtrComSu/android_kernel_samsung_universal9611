@@ -130,6 +130,11 @@ jobs:
             grep -q "^${s}=y" out/.config || { echo "MISSING: $s"; exit 1; }
           done
           grep -E '^CONFIG_DEFAULT_IOSCHED="' out/.config
+          echo "===== cpu hot-path debug accounting (must stay off) ====="
+          for s in CONFIG_TASK_DELAY_ACCT CONFIG_DEBUG_PREEMPT CONFIG_DEBUG_LIST \
+                   CONFIG_DEBUG_SNAPSHOT_LOGGING_SMC; do
+            grep -q "^# ${s} is not set" out/.config || { echo "MUST BE OFF: $s"; exit 1; }
+          done
           echo "===== tcp congestion default (must stay bic) ====="
           grep -q '^CONFIG_DEFAULT_TCP_CONG="bic"' out/.config || { echo "MISSING: DEFAULT_TCP_CONG=bic"; exit 1; }
           grep -q '^CONFIG_DEFAULT_BIC=y' out/.config || { echo "MISSING: DEFAULT_BIC=y"; exit 1; }
