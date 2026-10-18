@@ -41,8 +41,30 @@ patch_vbmeta_flag=auto;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
 
-# boot install
+# XT-Line installer flair (pure ASCII so every recovery renders it)
+xt_header() {
+  ui_print " ";
+  ui_print "  +==================================================+";
+  ui_print "  |                                                  |";
+  ui_print "  |        X T - L I N E   K E R N E L               |";
+  ui_print "  |                                                  |";
+  ui_print "  |   Exynos 9611  |  KernelSU-Next  |  SUSFS        |";
+  ui_print "  |   custom build - keep a backup, stay safe        |";
+  ui_print "  |                                                  |";
+  ui_print "  +==================================================+";
+  ui_print " ";
+  sleep 1;
+}
+
+xt_step() {
+  ui_print "  [..] $*";
+  sleep 1;
+}
+
+xt_header;
+xt_step "Unpacking the current boot image";
 dump_boot;
+
 # XT-Line fail-safe: keep a copy of the current boot image before patching so a
 # bad kernel can be restored from recovery. Best effort: /sdcard may be
 # unmounted in some recoveries.
@@ -55,13 +77,23 @@ boot_backup() {
   stamp=$(date +%Y%m%d-%H%M%S 2>/dev/null) || stamp=manual
   local out="$dir/boot-backup-$stamp.img"
   if dd if="$BLOCK" of="$out" bs=4096 2>/dev/null; then
-    ui_print "- Boot backup saved: $out"
+    ui_print "  [OK] Boot backup: $out"
   else
-    ui_print "! Boot backup failed (continuing)"
+    ui_print "  [! ] Boot backup failed (continuing)";
   fi
 }
+xt_step "Saving a boot image backup";
 boot_backup;
-ui_print "- Installing kernel";
+xt_step "Patching kernel and ramdisk";
 write_boot;
+ui_print "  [OK] Kernel installed";
+ui_print " ";
+ui_print "  ==================================================";
+ui_print "     INSTALL COMPLETE  -  REBOOT TO BOOT XT-LINE";
+ui_print "     Hold VOL DOWN at boot for KernelSU safe mode";
+ui_print "     Boot backup saved in /sdcard/Download";
+ui_print "  ==================================================";
+ui_print "    01011000 01010100 00101101 01001100 01001001 01001110 01000101";
+ui_print " ";
 ## end boot install
 ui_print "Installation Done"
