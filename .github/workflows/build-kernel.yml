@@ -119,8 +119,11 @@ jobs:
           grep -q '^CONFIG_IKCONFIG=y' out/.config || { echo "MISSING: IKCONFIG (system_server aborts without /proc/config.gz)"; exit 1; }
           grep -q '^CONFIG_IKCONFIG_PROC=y' out/.config || { echo "MISSING: IKCONFIG_PROC"; exit 1; }
           test -f out/kernel/config_data.gz || { echo "MISSING: out/kernel/config_data.gz"; exit 1; }
-          zgrep -q '^CONFIG_ARM64=y' out/kernel/config_data.gz || { echo "FAIL: config_data.gz is not a valid config gzip"; exit 1; }
-          if zgrep -qE 'CONFIG_(KSU|SUSFS)' out/kernel/config_data.gz; then
+          zcat out/kernel/config_data.gz > out/kernel/config_data.cfg \
+            || { echo "FAIL: config_data.gz is not valid gzip"; exit 1; }
+          grep -q '^CONFIG_ARM64=y' out/kernel/config_data.cfg \
+            || { echo "FAIL: config_data.gz is not a kernel config"; exit 1; }
+          if grep -qE 'CONFIG_(KSU|SUSFS)' out/kernel/config_data.cfg; then
             echo "FAIL: KSU/SUSFS leaks through /proc/config.gz"; exit 1
           fi
           echo "  filtered /proc/config.gz OK"
