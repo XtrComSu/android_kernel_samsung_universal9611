@@ -458,6 +458,21 @@ Use the **KernelSU-Next (KSUN) manager v3.4.2** —
 `KernelSU_Next_v3.4.2-spoofed_33355-release.apk`. Not the original KernelSU
 manager and not APatch.
 
+**Only one manager can be crowned.** The kernel watches installed APKs and
+crowns the first package whose v2 signing certificate matches the compiled-in
+expected cert (size `0x3e6` = 998, sha256 `79e59…`). While that manager's UID
+is valid it skips further searches (`manager uid unchanged, skip search!`), so
+installing a second valid manager does **not** take over — the old one stays
+active and the new app shows "not working", even though `su` keeps working
+(the allowlist is independent of the manager). To switch managers: uninstall
+the old crowned manager (and any non-matching ones such as
+`me.weishu.kernelsu` v3.3.x, cert `4359…`), then install the new APK; the
+package-add event triggers the crown (`Crowning manager: <pkg>` in dmesg) and
+the manager updated `/data/adb/ksud` to 3.4.2 (uapi 5) on first launch. The
+spoofed v3.4.2 APK installs under a random package name, as intended.
+`ksud debug version` / `ksud debug info` are the reliable kernel-side checks
+(`33355`, `uapi_version: 5`).
+
 The kernel is pinned to tag `v3.4.2-legacy-susfs-v2`, so it reports version
 `33355` and `KERNEL_SU_UAPI_VERSION = 5`, matching that manager exactly.
 
