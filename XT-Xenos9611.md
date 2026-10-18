@@ -480,21 +480,27 @@ Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
 LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
-- Status: **success** (v3.4.2 rebase)
-- Run: `39126533696` (commit `64e6f0900`), branch `ksun-susfs`; the first
-  v3.4.2 attempt (`39125207801`) failed on the `__poll_t` clash fixed by
-  `64e6f0900` (CHANGELOG §8).
+- Status: **success** (upstream catch-up merge)
+- Run: `39133066014` (merge `518fd077b`, catch-up with upstream
+  `lineage-24.0`); previous: `39126533696` (`64e6f0900`, v3.4.2 rebase);
+  the first v3.4.2 attempt (`39125207801`) failed on the `__poll_t` clash
+  fixed by `64e6f0900` (CHANGELOG §8).
 - Result: `Image` 37 MB, packaged as `XT-Line-KSUN_m31_<date>.zip` (~17 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
   `CONFIG_KSU_SUSFS=y`, all nine implemented SUSFS features `=y`, plus every
   external-wifi/gadget symbol (the workflow fails the build if any is missing).
+- Upstream catch-up (CHANGELOG §10): NFC now enabled —
+  `CONFIG_SAMSUNG_NFC=y`, `CONFIG_SEC_NFC=y`, `CONFIG_SEC_NFC_LOGGER=y`
+  in `exynos9611-m21/m31_defconfig`.
 - Embedded markers verified in `Image`: `apply_kernelsu`,
   `susfs_sus_kstat_spoof_proc_fd_seq_show`, `linux version 4.14.357-XT-Line-AOSP`,
   `v3.4.2-legacy-susfs-v2`.
 
-CI run summary: the v3.4.2 rebase compiled after one integration fix
-(`__poll_t` tree-probe); the earlier v3.3.0 line built with zero rejected
-hunks.
+CI run summary: the upstream `lineage-24.0` catch-up merged with no
+conflicts (upstream had rebased — content parity confirmed by probes, the
+only real delta was the NFC enable) and built green in one shot; the
+v3.4.2 rebase compiled after one integration fix (`__poll_t` tree-probe);
+the earlier v3.3.0 line built with zero rejected hunks.
 
 ## PACKAGE
 
@@ -543,3 +549,6 @@ python3 build_kernel.py --target m31
 Pinned revisions: baseline `1500b70ea`; KernelSU-Next official `465490a266`
 plus SUSFS glue from sidex15 `d999a2aff115` (merged in the port repo as
 `3323ee36`); SUSFS v2.3.0 @ `929a8eac7` (OpenELA-4.14.y-susfs HEAD).
+Upstream `lineage-24.0` catch-up merged as `518fd077b` (2026-10-18; brought
+in the NFC enable; upstream rebases its branch, so commit IDs there are not
+stable across syncs — compare **content**, not SHAs).

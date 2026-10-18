@@ -259,7 +259,9 @@ refactor, NULL-deref fix).
 
 ## 9. Current steady state
 
-- Last green build: run **39126533696** at commit `64e6f0900` (v3.4.2 rebase).
+- Last green build: run **39133066014** at merge `518fd077b` (upstream
+  `lineage-24.0` catch-up, §10); previous: run `39126533696` at `64e6f0900`
+  (v3.4.2 rebase).
 - CI asserts: `BIC`/`DEFAULT_TCP_CONG="bic"`, the tag string
   `v3.4.2-legacy-susfs-v2` in `Image`, all nine implemented SUSFS features
   `=y`, `SUSFS_ENABLE_LOG` off, `SUS_MEMFD` **off**, plus the
@@ -276,5 +278,33 @@ refactor, NULL-deref fix).
 2. **SUSFS hiding requires a real app to validate** — `su <uid>` is not a valid probe.
 3. Any module that ships **whiteout markers for framework paths** can bootloop the
    device; `lineage_hide` is currently disabled for exactly this reason.
-4. **On-device flash of the v3.4.2 build is still pending** — device-verified
-   statements elsewhere refer to the last flashed build (v3.3.0, `ed1241b9a`).
+4. **On-device flash of the v3.4.2 build is still pending** — the current
+   flash target is the catch-up build (`518fd077b`, run `39133066014`);
+   device-verified statements elsewhere refer to the last flashed build
+   (v3.3.0, `ed1241b9a`).
+
+---
+
+## 10. Upstream catch-up — lineage-24.0 merge (2026-10-18)
+
+### `518fd077b` `[src]` — merge upstream `lineage-24.0` into `ksun-susfs`
+Parbindar's branch had been **rebased** (commit IDs changed, content mostly
+identical). Content probes confirmed the clone3 / CAP_CHECKPOINT_RESTORE
+series, the tipc/NFC-LLCP fixes and the `dev_recursion_level` `this_cpu`
+fix were already present in our tree. The **only** real delta the merge
+brought in is the NFC enable in the two defconfigs upstream changed:
+`CONFIG_SAMSUNG_NFC=y`, `CONFIG_SEC_NFC=y`, `CONFIG_SEC_NFC_LOGGER=y`
+(`exynos9611-m21_defconfig`, `exynos9611-m31_defconfig`).
+
+Merge was conflict-free. Fixes from our older chain that the upstream
+rebase dropped (e.g. the `mm/zsmalloc.c` compaction locking fix) are
+preserved on our side. Post-merge checks: `KSU_HAS_POLL_T` guard + Kbuild
+probe intact, `CONFIG_KSU=y` / `CONFIG_KSU_SUSFS=y` intact, `fs/nomount`
+still absent, `XT-Line` naming intact.
+
+Build: run `39133066014` (push, head `518fd077b`) — **green**. Artifact
+re-verified: `v3.4.2-legacy-susfs-v2` tag present, `nomount` count 0.
+
+**Lesson:** upstream rewrites its branch history, so "N commits behind" is
+not a content signal. Probe actual content before assuming a catch-up is a
+big job.
