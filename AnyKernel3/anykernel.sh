@@ -43,6 +43,24 @@ patch_vbmeta_flag=auto;
 
 # boot install
 dump_boot;
+# XT-Line fail-safe: keep a copy of the current boot image before patching so a
+# bad kernel can be restored from recovery. Best effort: /sdcard may be
+# unmounted in some recoveries.
+boot_backup() {
+  [ -n "$BLOCK" ] || return 0;
+  local dir=/sdcard/Download
+  [ -d "$dir" ] || dir=/data/local/tmp
+  [ -d "$dir" ] || dir=/tmp
+  local stamp
+  stamp=$(date +%Y%m%d-%H%M%S 2>/dev/null) || stamp=manual
+  local out="$dir/boot-backup-$stamp.img"
+  if dd if="$BLOCK" of="$out" bs=4096 2>/dev/null; then
+    ui_print "- Boot backup saved: $out"
+  else
+    ui_print "! Boot backup failed (continuing)"
+  fi
+}
+boot_backup;
 ui_print "- Installing kernel";
 write_boot;
 ## end boot install

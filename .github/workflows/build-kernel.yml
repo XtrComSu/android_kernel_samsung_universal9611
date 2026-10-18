@@ -115,6 +115,15 @@ jobs:
           grep -q '^# CONFIG_KSU_SUSFS_SUS_MEMFD is not set' out/.config \
             || { echo "SUS_MEMFD must stay OFF: not implemented in SUSFS v2.3.0 (fs/susfs.c has no susfs_add_sus_memfd) and breaks the build"; exit 1; }
           echo "  susfs stealth features OK (logging disabled, SUS_MEMFD correctly off)"
+          echo "===== /proc/config.gz present but KSU/SUSFS-filtered (b/151092221) ====="
+          grep -q '^CONFIG_IKCONFIG=y' out/.config || { echo "MISSING: IKCONFIG (system_server aborts without /proc/config.gz)"; exit 1; }
+          grep -q '^CONFIG_IKCONFIG_PROC=y' out/.config || { echo "MISSING: IKCONFIG_PROC"; exit 1; }
+          test -f out/kernel/config_data.gz || { echo "MISSING: out/kernel/config_data.gz"; exit 1; }
+          zgrep -q '^CONFIG_ARM64=y' out/kernel/config_data.gz || { echo "FAIL: config_data.gz is not a valid config gzip"; exit 1; }
+          if zgrep -qE 'CONFIG_(KSU|SUSFS)' out/kernel/config_data.gz; then
+            echo "FAIL: KSU/SUSFS leaks through /proc/config.gz"; exit 1
+          fi
+          echo "  filtered /proc/config.gz OK"
           echo "===== external wifi / nethunter (must all be =y) ====="
           for s in CONFIG_MAC80211 CONFIG_CFG80211 CONFIG_RTL8XXXU CONFIG_MT7601U \
                    CONFIG_ATH9K_HTC CONFIG_RT2X00 CONFIG_RT2800USB CONFIG_RTL8192CU \

@@ -1,0 +1,6 @@
+id=xtbootguard
+name=XT Boot Guard
+version=v1.0
+versionCode=1
+author=XT-Line
+description=Automatic bootloop fallback: after 3 incomplete boots it disables all other KernelSU modules so the next boot comes up clean. Use the module action to re-enable them.
