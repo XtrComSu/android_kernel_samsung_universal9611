@@ -259,11 +259,12 @@ refactor, NULL-deref fix).
 
 ## 9. Current steady state
 
-- Last green build: run **39151897465** at `fddc93ef8` (bootloop fix +
-  fail-safes, §13); previous: run `39140557770` at `e77b66d8a` (CPU pass,
-  §12), run `39137640082` at `4ab0eb8f2` (gaming pass, §11), run
-  `39133066014` at merge `518fd077b` (upstream catch-up, §10), and run
-  `39126533696` at `64e6f0900` (v3.4.2 rebase).
+- Last green build: run **39153931889** at `13539bab3` (progressive guard +
+  auto-install, §13); previous: run `39151897465` at `fddc93ef8` (bootloop
+  fix), run `39140557770` at `e77b66d8a` (CPU pass, §12), run `39137640082`
+  at `4ab0eb8f2` (gaming pass, §11), run `39133066014` at merge `518fd077b`
+  (upstream catch-up, §10), and run `39126533696` at `64e6f0900` (v3.4.2
+  rebase).
 - CI asserts: `BIC`/`DEFAULT_TCP_CONG="bic"`, the tag string
   `v3.4.2-legacy-susfs-v2` in `Image`, all nine implemented SUSFS features
   `=y`, `SUSFS_ENABLE_LOG` off, `SUS_MEMFD` **off**, plus the
@@ -428,10 +429,14 @@ framework requires the file.
 ### `e57694aab` `[ci]` — boot fail-safes
 - AnyKernel3: before patching, best-effort copy of the current boot
   partition to `/sdcard/Download/boot-backup-<timestamp>.img`.
-- `extras/xtbootguard` module: counts incomplete boots; after 3 it
-  disables all other KernelSU modules so the next boot is clean;
-  `service.sh` clears the counter after `sys.boot_completed`; the module
-  action re-enables modules from the manager.
+- `extras/xtbootguard` **v2.0** (progressive, auto-installed with the
+  kernel): 3 incomplete boots disable all other modules (safe boot); 6 write
+  `/sdcard/Download/XTBOOTGUARD-README.txt` and reboot to recovery; 9
+  size-check the newest `boot-backup-*.img` against the boot partition and
+  restore it, then reboot (recovery if unavailable). Every stage logs kernel
+  release, boot reasons, fail count and module count to
+  `/data/adb/xtbootguard/boot.log` (200-line rotation); the manager action
+  re-enables modules and clears the counters.
 - KernelSU safe mode: hold **Volume Down** while booting to skip modules
   for that boot (kernel logs `volumedown_pressed_count`).
 
@@ -440,6 +445,16 @@ framework requires the file.
 step saw a failure (and the leak check could falsely pass). Decompress
 once and grep the plain file.
 
-Build: run `39151897465` (head `fddc93ef8`) — green; artifact re-verified:
-embedded config present and filtered (6072 lines, no KSU/SUSFS strings),
-tag `v3.4.2-legacy-susfs-v2`, `mali_exynos_touch_boost`, `nomount`=0.
+Installer/CI polish (`7ca32a139`, `13539bab3`, `f8f833629`):
+- AnyKernel3 shows an ASCII banner, staged progress lines and a completion
+  flourish (pure ASCII, no ANSI — renders in any recovery).
+- The guard is packaged into the kernel zip and auto-installed to
+  `/data/adb/modules/xtbootguard` on flash (falls back to
+  `/sdcard/Download/xtbootguard` when `/data` is not mounted).
+- CI now queues builds (`concurrency`, `cancel-in-progress: false`): a push
+  during a running build starts automatically when it finishes.
+
+Build: run `39153931889` (head `13539bab3`) — green; artifact re-verified:
+zip contains the guard payload and installer code; embedded config present
+and filtered (6072 lines, no KSU/SUSFS strings); tag
+`v3.4.2-legacy-susfs-v2`, `mali_exynos_touch_boost`, `nomount`=0.

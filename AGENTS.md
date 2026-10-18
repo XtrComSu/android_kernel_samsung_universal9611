@@ -131,6 +131,7 @@ Before blaming SUSFS, check in this order:
 | `/data/adb/metamodule` | Symlink → `/data/adb/modules/nomount`. Delete it so KSUN mounts modules natively again. |
 | `/data/adb/modules/r8188eu_firmware/` | Systemless overlay providing `rtlwifi/rtl8188eufw.bin` (the ROM ships **no** Realtek firmware). |
 | `/data/adb/r8188eu/r8188eu.ko` | The Wi-Fi module. **Its CRC is tied to the kernel build** — refresh it after every rebuild. |
+| `/data/adb/xtbootguard/` | XT Boot Guard state: `boot.log`, `fails` counter, `last`, `restore_done`. The module is auto-installed on every kernel flash (3 fails → modules off, 6 → recovery, 9 → boot-image restore). |
 
 ### The working SUSFS hiding pattern
 brene hides a path by calling **both**:

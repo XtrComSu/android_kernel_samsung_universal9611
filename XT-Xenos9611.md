@@ -540,14 +540,14 @@ Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
 LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
-- Status: **success** (bootloop fix + fail-safes)
-- Run: `39151897465` (`fddc93ef8`); previous: `39140557770` (`e77b66d8a`,
-  CPU pass), `39137640082` (`4ab0eb8f2`, gaming pass), `39133066014`
-  (upstream catch-up merge `518fd077b`), `39126533696` (`64e6f0900`,
-  v3.4.2 rebase); the v3.4.2 attempt `39125207801` failed on `__poll_t`
-  (CHANGELOG §8), the first CPU-pass attempt `39139505797` on
-  `TASK_DELAY_ACCT`→`sec_debug` (§12), and the first bootloop-fix
-  verification run on a `zgrep` SIGPIPE (§13).
+- Status: **success** (progressive boot guard + auto-install)
+- Run: `39153931889` (`13539bab3`); previous: `39151897465` (`fddc93ef8`,
+  bootloop fix), `39140557770` (`e77b66d8a`, CPU pass), `39137640082`
+  (`4ab0eb8f2`, gaming pass), `39133066014` (upstream catch-up merge
+  `518fd077b`), `39126533696` (`64e6f0900`, v3.4.2 rebase); the v3.4.2
+  attempt `39125207801` failed on `__poll_t` (CHANGELOG §8), the first
+  CPU-pass attempt `39139505797` on `TASK_DELAY_ACCT`→`sec_debug` (§12),
+  and the first bootloop-fix verification run on a `zgrep` SIGPIPE (§13).
 - Result: `Image` 37 MB, packaged as `XT-Line-KSUN_m31_<date>.zip` (~17 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
   `CONFIG_KSU_SUSFS=y`, all nine implemented SUSFS features `=y`, plus every
@@ -571,7 +571,8 @@ hunks.
 ## PACKAGE
 
 AnyKernel3 (`AnyKernel3/`), packaged by `build_kernel.py` as
-`XT-Line-KSUN_m31_<date>.zip` containing `Image`, `dtbo.img`, `dtb`.
+`XT-Line-KSUN_m31_<date>.zip` containing `Image`, `dtbo.img`, `dtb` plus the
+`xtbootguard` payload (auto-installed to `/data/adb/modules/xtbootguard`).
 CI artifact: `ksun-susfs-m31` (~31.7 MB, includes Image/dtb/dtbo + zip).
 
 **Flash only after keeping a backup of the current boot image.** AnyKernel3
@@ -598,8 +599,13 @@ clean of susfs/ksu faults.
 2. **Kernel suspect:** reflash the automatic backup the installer writes to
    `/sdcard/Download/boot-backup-<timestamp>.img`, or the previous boot image,
    from recovery.
-3. The `xtbootguard` module auto-disables all other modules after three
-   incomplete boots; run its action in the manager to re-enable them.
+3. `xtbootguard` v2.0 is auto-installed with every kernel flash. It
+   escalates on incomplete boots: **3** → all other modules disabled (safe
+   boot); **6** → report in `/sdcard/Download/XTBOOTGUARD-README.txt` and
+   reboot to recovery; **9** → restores the newest size-checked
+   `boot-backup-*.img` and reboots. Boot log:
+   `/data/adb/xtbootguard/boot.log`. The manager action re-enables modules
+   and clears the counters.
 4. `uname` in app context can be spoofed by SUSFS — verify the real kernel
    with `su -c 'cat /proc/version'` (this exact confusion hid the bootloop
    cause: the device was running the restored Everline-KSUN image while
