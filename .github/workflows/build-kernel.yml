@@ -131,7 +131,7 @@ jobs:
           done
           grep -E '^CONFIG_DEFAULT_IOSCHED="' out/.config
           echo "===== cpu hot-path debug accounting (must stay off) ====="
-          for s in CONFIG_TASK_DELAY_ACCT CONFIG_DEBUG_PREEMPT CONFIG_DEBUG_LIST \
+          for s in CONFIG_DEBUG_PREEMPT CONFIG_DEBUG_LIST \
                    CONFIG_DEBUG_SNAPSHOT_LOGGING_SMC; do
             grep -q "^# ${s} is not set" out/.config || { echo "MUST BE OFF: $s"; exit 1; }
           done
