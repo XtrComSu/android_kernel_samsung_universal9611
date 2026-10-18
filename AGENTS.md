@@ -40,6 +40,7 @@ every build. **Do not "clean these up" without understanding why they are there.
 | `CONFIG_KSU_SUSFS_ENABLE_LOG` **is not set** | SUSFS logging writes hidden-path activity into the kernel log — a detection surface. |
 | `CONFIG_KSU_SUSFS_SUS_MEMFD` **is not set** | **Trap:** `Kconfig` offers it and `supercall/supercall.c` calls `susfs_add_sus_memfd()`, but SUSFS v2.3.0 does **not implement** it (`fs/susfs.c` / `susfs.h` have no such symbol or `CMD_SUSFS_ADD_SUS_MEMFD`). Enabling it **breaks the build**. |
 | exactly one occurrence of each option in the defconfig | kconfig honours the **last** occurrence. A duplicate silently negated SUS_MEMFD once already. |
+| `CONFIG_IKCONFIG=y` + `CONFIG_IKCONFIG_PROC=y`, with **no** `CONFIG_KSU`/`CONFIG_SUSFS` lines in the embedded blob | Infinity-X 3.12's framework aborts `system_server` when `/proc/config.gz` is unreadable (b/151092221). The blob is filtered in `kernel/Makefile`; CI checks both presence and leak-freeness. |
 
 ---
 
@@ -180,3 +181,8 @@ adapter.
   and the `/data/adb/metamodule` symlink so KSUN mounts modules natively.
 - Do not "verify" hiding with `su <uid>`; use a real app (§3.4).
 - Do not commit to `xtrcomsu-*` remote branches that may not exist — push to `fork`.
+- Do not disable `IKCONFIG`/`IKCONFIG_PROC` "for stealth" — the ROM's
+  `system_server` aborts without `/proc/config.gz` (b/151092221). The blob is
+  filtered in `kernel/Makefile`; extend the filter if new secret options appear.
+- Do not trust app-side `uname`: SUSFS `spoof_uname` can fake it. Check the
+  real kernel with `su -c 'cat /proc/version'`.

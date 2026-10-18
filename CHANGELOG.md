@@ -259,8 +259,9 @@ refactor, NULL-deref fix).
 
 ## 9. Current steady state
 
-- Last green build: run **39140557770** at `e77b66d8a` (CPU pass, §12);
-  previous: run `39137640082` at `4ab0eb8f2` (gaming pass, §11), run
+- Last green build: run **39151897465** at `fddc93ef8` (bootloop fix +
+  fail-safes, §13); previous: run `39140557770` at `e77b66d8a` (CPU pass,
+  §12), run `39137640082` at `4ab0eb8f2` (gaming pass, §11), run
   `39133066014` at merge `518fd077b` (upstream catch-up, §10), and run
   `39126533696` at `64e6f0900` (v3.4.2 rebase).
 - CI asserts: `BIC`/`DEFAULT_TCP_CONG="bic"`, the tag string
@@ -393,3 +394,52 @@ boosts are driven by uclamp, not KPP.
 
 Build: run `39140557770` (push, head `e77b66d8a`) — green; artifact
 re-verified (tag, `nomount`=0, touch-boost symbol, zip hash).
+
+---
+
+## 13. Bootloop RCA + boot fail-safes (2026-10-18)
+
+### `e57694aab` `[fix]` — restore a filtered /proc/config.gz
+**Symptom:** bootloop — `system_server` SIGABRT ~10 s after start, init
+reboots with `zycold-fatal`.
+
+**Cause:** Infinity-X 3.12's framework calls
+`MemInfoReader.getKernelUsedSizeKb()` → `Debug.isVmapStack()`, whose
+native side reads `/proc/config.gz` and calls `LOG(FATAL)` when the read
+fails (b/151092221). The XT-Line kernel had IKCONFIG disabled for stealth
+(`e455b0d8d`), so the file was missing and `system_server` aborted on
+every boot. The earlier Everline-KSUN kernel has `IKCONFIG=y`, which is
+why restoring that boot image in recovery recovered the device.
+
+Evidence: an intact tombstone (older copy) —
+`Abort message: 'Check failed: result == OK Kernel configs could not be
+fetched. b/151092221'`, backtrace `libandroid_runtime.so
+(android_os_Debug_isVmapStack)` ← `MemInfoReader.getKernelUsedSizeKb`.
+The loop's own tombstones were zero-filled by the known f2fs
+`nobarrier` behaviour (AGENTS.md §3.3).
+
+**Fix:** IKCONFIG/IKCONFIG_PROC re-enabled, but `kernel/Makefile` now
+generates `config_data.gz` from a copy of `.config` with
+`CONFIG_KSU*`/`CONFIG_SUSFS*` lines stripped (still a valid gzip). CI
+asserts the blob is present, decompresses, contains `CONFIG_ARM64`, and
+contains no KSU/SUSFS strings. **Do not disable IKCONFIG again** — the
+framework requires the file.
+
+### `e57694aab` `[ci]` — boot fail-safes
+- AnyKernel3: before patching, best-effort copy of the current boot
+  partition to `/sdcard/Download/boot-backup-<timestamp>.img`.
+- `extras/xtbootguard` module: counts incomplete boots; after 3 it
+  disables all other KernelSU modules so the next boot is clean;
+  `service.sh` clears the counter after `sys.boot_completed`; the module
+  action re-enables modules from the manager.
+- KernelSU safe mode: hold **Volume Down** while booting to skip modules
+  for that boot (kernel logs `volumedown_pressed_count`).
+
+### `fddc93ef8` `[ci]` — verification SIGPIPE fix
+`zgrep -q` exits on the first match, so gzip dies with SIGPIPE and the
+step saw a failure (and the leak check could falsely pass). Decompress
+once and grep the plain file.
+
+Build: run `39151897465` (head `fddc93ef8`) — green; artifact re-verified:
+embedded config present and filtered (6072 lines, no KSU/SUSFS strings),
+tag `v3.4.2-legacy-susfs-v2`, `mali_exynos_touch_boost`, `nomount`=0.

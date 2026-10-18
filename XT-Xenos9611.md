@@ -412,9 +412,14 @@ found **0** leaked `/data/adb`, zygisk or magisk references in `/proc/<pid>/maps
 
 Kernel-side leak that SUSFS does *not* cover, fixed here:
 
-- `/proc/config.gz` (`CONFIG_IKCONFIG` + `CONFIG_IKCONFIG_PROC`) exposed the
-  entire kernel config to any app, including `CONFIG_KSU=y` and
-  `CONFIG_KSU_SUSFS=y`. Both are now disabled, so there is no `/proc/config.gz`.
+- `/proc/config.gz` (`CONFIG_IKCONFIG` + `CONFIG_IKCONFIG_PROC`) used to
+  expose the entire kernel config, including `CONFIG_KSU=y` and
+  `CONFIG_KSU_SUSFS=y`. It **must exist**: Infinity-X 3.12 aborts
+  `system_server` via `Debug.isVmapStack()` when the file is unreadable
+  (b/151092221). `kernel/Makefile` now embeds a **filtered** gzip with all
+  `CONFIG_KSU*`/`CONFIG_SUSFS*` lines stripped, and CI asserts the blob is
+  valid and leak-free. Do **not** disable IKCONFIG "for stealth" — it
+  bootloops the ROM (CHANGELOG §13).
 - `CONFIG_LOCALVERSION="-XT-Line-AOSP"` (renamed from `-Everline-AOSP`), which
   shows up in
   `/proc/version` as a custom-kernel string. Rename it if you want a neutral
@@ -535,13 +540,14 @@ Built on GitHub Actions (`ubuntu-22.04`) with ZyCromerZ Clang 16.0.6 (full
 LLVM binutils), matching the repo's `LLVM=1` build. Workflow:
 `.github/workflows/build-kernel.yml`.
 
-- Status: **success** (CPU pass)
-- Run: `39140557770` (`e77b66d8a`, CPU pass); previous: `39137640082`
-  (`4ab0eb8f2`, gaming pass), `39133066014` (upstream catch-up merge
-  `518fd077b`), `39126533696` (`64e6f0900`, v3.4.2 rebase); the first
-  v3.4.2 attempt (`39125207801`) failed on the `__poll_t` clash
-  (CHANGELOG §8), and the first CPU-pass attempt (`39139505797`) failed
-  on `TASK_DELAY_ACCT` → `SCHED_INFO` → `sec_debug.c` (CHANGELOG §12).
+- Status: **success** (bootloop fix + fail-safes)
+- Run: `39151897465` (`fddc93ef8`); previous: `39140557770` (`e77b66d8a`,
+  CPU pass), `39137640082` (`4ab0eb8f2`, gaming pass), `39133066014`
+  (upstream catch-up merge `518fd077b`), `39126533696` (`64e6f0900`,
+  v3.4.2 rebase); the v3.4.2 attempt `39125207801` failed on `__poll_t`
+  (CHANGELOG §8), the first CPU-pass attempt `39139505797` on
+  `TASK_DELAY_ACCT`→`sec_debug` (§12), and the first bootloop-fix
+  verification run on a `zgrep` SIGPIPE (§13).
 - Result: `Image` 37 MB, packaged as `XT-Line-KSUN_m31_<date>.zip` (~17 MB)
 - Effective config confirmed: `CONFIG_KSU=y`, `CONFIG_KSU_MANUAL_HOOK=y`,
   `CONFIG_KSU_SUSFS=y`, all nine implemented SUSFS features `=y`, plus every
@@ -584,6 +590,20 @@ the zip is flashed.
 works; `ksud`/module (sidex15/susfs4ksu-module >= v1.5.2) initializes SUSFS;
 SELinux enforcing; suspend/resume; Wi-Fi/BT/camera/audio/network; `dmesg`
 clean of susfs/ksu faults.
+
+## RECOVERY (bootloop)
+
+1. **Modules suspect:** hold **Volume Down** while booting — KernelSU safe
+   mode skips all modules for that boot.
+2. **Kernel suspect:** reflash the automatic backup the installer writes to
+   `/sdcard/Download/boot-backup-<timestamp>.img`, or the previous boot image,
+   from recovery.
+3. The `xtbootguard` module auto-disables all other modules after three
+   incomplete boots; run its action in the manager to re-enable them.
+4. `uname` in app context can be spoofed by SUSFS — verify the real kernel
+   with `su -c 'cat /proc/version'` (this exact confusion hid the bootloop
+   cause: the device was running the restored Everline-KSUN image while
+   apps reported XT-Line, CHANGELOG §13).
 
 ## VERSION
 
