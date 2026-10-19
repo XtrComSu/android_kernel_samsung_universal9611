@@ -122,8 +122,14 @@ obj-$(CONFIG_FAST_TRACK) += ftt/
 $(obj)/configs.o: $(obj)/config_data.h
 
 targets += config_data.gz
+# Expose the kernel config through /proc/config.gz (Android's MemInfoReader /
+# Debug.isVmapStack aborts system_server without it, b/151092221), but strip
+# the KSU/SUSFS entries so the blob does not disclose the root integration.
+# Keep the output a plain gzip stream for userspace.
+quiet_cmd_ikconfiggz = GZIP    $@
+      cmd_ikconfiggz = grep -vE 'CONFIG_(KSU|SUSFS)' $(KCONFIG_CONFIG) | gzip -n -9 > $@
 $(obj)/config_data.gz: $(KCONFIG_CONFIG) FORCE
-	$(call if_changed,gzip)
+	$(call if_changed,ikconfiggz)
 
       filechk_ikconfiggz = (echo "static const char kernel_config_data[] __used = MAGIC_START"; cat $< | scripts/basic/bin2c; echo "MAGIC_END;")
 targets += config_data.h
