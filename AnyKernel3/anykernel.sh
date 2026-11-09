@@ -18,7 +18,7 @@ device.name5=m21
 device.name6=gta4xl
 device.name7=gta4xlwifi
 device.name8=m21s
-supported.versions=13 - 16
+supported.versions=13 - 17
 supported.patchlevels=
 supported.vendorpatchlevels=
 '; } # end properties
