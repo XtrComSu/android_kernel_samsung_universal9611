@@ -259,6 +259,7 @@ void escape_to_root_for_init(void)
 
     setup_selinux(KERNEL_SU_CONTEXT, cred);
     commit_creds(cred);
+    setup_mount_ns(KSU_NS_GLOBAL);
 }
 
 void __init ksu_app_profile_init(void)

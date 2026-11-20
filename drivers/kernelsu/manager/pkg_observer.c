@@ -10,6 +10,9 @@
 #include <linux/version.h>
 #include "klog.h" // IWYU pragma: keep
 #include "throne_tracker.h"
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/susfs.h>
+#endif
 #include "runtime/ksud_boot.h"
 #include "compat/kernel_compat.h" // TWA_RESUME on < 5.7
 
@@ -42,6 +45,9 @@ static void ksu_track_throne_tw_func(struct callback_head *cb)
 	if (current->flags & PF_EXITING)
 		return;
 	track_throne(false);
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+	susfs_parse_sus_path_app_strings();
+#endif
 }
 
 static void ksu_defer_track_throne(void)

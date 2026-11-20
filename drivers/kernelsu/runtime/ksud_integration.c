@@ -312,6 +312,11 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
 		if (!init_second_stage_executed &&
 		    check_argv(*argv, 1, "second_stage", buf, sizeof(buf))) {
 			pr_info("/system/bin/init second_stage executed\n");
+			ksu_selinux_hide_handle_second_stage();
+			apply_kernelsu_rules();
+			ksu_feature_apply_forced();
+			cache_sid();
+			setup_ksu_cred();
 			struct callback_head *cb = kzalloc(sizeof(*cb), GFP_ATOMIC);
 			if (cb) {
 				cb->func = ksu_initialize_selinux_tw_func;
@@ -319,9 +324,6 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
 					kfree(cb);
 					pr_warn("ksu_initialize_selinux failed to add task work\n");
 				}
-			} else {
-				pr_warn(
-					"ksu_initialize_selinux failed to allocate task work\n");
 			}
 			init_second_stage_executed = true;
 		}
@@ -379,12 +381,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
 		if (check_argv(*argv, 1, "-Xzygote", buf, sizeof(buf))) {
 			pr_info("exec zygote, /data prepared, second_stage: %d\n",
 				init_second_stage_executed);
-			rcu_read_lock();
-			struct task_struct *init_task =
-				rcu_dereference(current->real_parent);
-			if (init_task)
-				task_work_add(init_task, &on_post_fs_data_cb, TWA_RESUME);
-			rcu_read_unlock();
+			on_post_fs_data();
 			first_zygote = false;
 			stop_execve_hook();
 		}
@@ -965,8 +962,6 @@ __attribute__((cold))
 static noinline void ksu_common_newfstat_ret(unsigned int fd_int, void **statbuf_ptr, 
 			const int type, const char *syscall_name)
 {
-	if (!is_init(current_cred()))
-		return;
 
 	struct file *file = fget(fd_int);
 	if (!file)

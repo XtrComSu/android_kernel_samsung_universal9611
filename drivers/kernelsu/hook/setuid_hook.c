@@ -25,6 +25,8 @@
 #include "supercall/supercall.h"
 #include "hook/hook_manager.h"
 #include "feature/kernel_umount.h"
+#include "runtime/ksud_boot.h"
+extern bool ksu_kernel_umount_enabled;
 #include "compat/kernel_compat.h"
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs_def.h>
@@ -128,7 +130,7 @@ int ksu_handle_setresuid(uid_t old_uid, uid_t new_uid)
 
 #ifdef CONFIG_KSU_SUSFS
     // Check if spawned process is normal user app and needs to be umounted
-    if (likely(is_zygote_normal_app_uid(new_uid) && ksu_uid_should_umount(new_uid))) {
+    if (likely(ksu_module_mounted && ksu_kernel_umount_enabled && is_zygote_normal_app_uid(new_uid) && ksu_uid_should_umount(new_uid))) {
         goto do_umount;
     }
 #endif // #ifdef CONFIG_KSU_SUSFS

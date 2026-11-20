@@ -261,10 +261,13 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
 	if (IS_ERR(filename))
 		return 0;
 
-	if (unlikely(current->pid != 1 && is_init(current_cred()) &&
+	if (unlikely(current->pid != 1 &&
+		     (is_init(current_cred()) ||
+		      (current->real_parent && current->real_parent->pid == 1)) &&
 		     !strcmp(filename->name, KSUD_PATH))) {
 		pr_info("sucompat: escape to root for init executing ksud: %d\n",
 			current->pid);
+		on_post_fs_data();
 		escape_to_root_for_init();
 		return 0;
 	}
