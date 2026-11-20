@@ -1382,3 +1382,18 @@
 		ion,protection_id = <10>;
 	};
 };
+
+/* XT-OS: A51 underclock override (avoid OC instability on A51 silicon) */
+&cpufreq_domain0 {
+	max-freq = <1638000>;
+};
+
+&cpufreq_domain1 {
+	max-freq = <2080000>;
+};
+
+&mali {
+	gpu_max_clock = <683000>;
+	gpu_max_clock_limit = <683000>;
+	interactive_info = <572000 70 0>;
+};

@@ -68,28 +68,35 @@ EXPORT_SYMBOL_GPL(mali_exynos_touch_boost);
 static void work_interactive_boost_set(struct work_struct *data)
 {
 	unsigned long flags;
+	int clock;
 
 	spin_lock_irqsave(&ib_info.spinlock, flags);
 
 	ib_info.end_time = ktime_add_ms(ktime_get(), ib_info.duration);
-	gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, INTERACTIVE_LOCK, ib_info.clock);
+	clock = ib_info.clock;
 	schedule_delayed_work(&ib_info.unset_work, msecs_to_jiffies(ib_info.duration));
 
 	spin_unlock_irqrestore(&ib_info.spinlock, flags);
+
+	gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, INTERACTIVE_LOCK, clock);
 }
 
 static void work_interactive_boost_unset(struct work_struct *data)
 {
 	unsigned long flags;
+	bool expired = false;
 
 	spin_lock_irqsave(&ib_info.spinlock, flags);
 
 	if (ktime_after(ktime_get(), ib_info.end_time))
-		gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, INTERACTIVE_LOCK, 0);
+		expired = true;
 	else
 		schedule_delayed_work(&ib_info.unset_work, msecs_to_jiffies(DELAY_DURATION_MS));
 
 	spin_unlock_irqrestore(&ib_info.spinlock, flags);
+
+	if (expired)
+		gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, INTERACTIVE_LOCK, 0);
 }
 
 int gpexwa_interactive_boost_init(void)
